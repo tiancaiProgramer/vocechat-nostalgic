@@ -1,0 +1,862 @@
+import '../../server/data/server_connection.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../core/network/dio_client.dart';
+import '../../../core/notifications/fcm_service.dart';
+import '../../../core/storage/account_store.dart';
+import '../../../core/storage/login_device_id.dart';
+import '../../../core/storage/media_cache.dart';
+import '../../../core/storage/secure_token_store.dart';
+import '../../../core/storage/server_store.dart';
+import '../../../core/utils/app_log.dart';
+import '../data/auth_api.dart';
+import '../../messages/data/message_cache.dart';
+import '../domain/auth_models.dart';
+
+part 'auth_controller.freezed.dart';
+part 'auth_controller.g.dart';
+
+enum AuthRestoreFailure {
+  missingAccount,
+  missingTokens,
+  rejected,
+  serverChanged
+}
+
+final authRestoreFailureProvider =
+    StateProvider<AuthRestoreFailure?>((ref) => null);
+
+// ---------------------------------------------------------------------------
+// AuthState (sealed)
+// ---------------------------------------------------------------------------
+
+@freezed
+sealed class AuthState with _$AuthState {
+  const factory AuthState.unauthenticated() = AuthStateUnauthenticated;
+  const factory AuthState.loading() = AuthStateLoading;
+  const factory AuthState.authenticated({required VoceUser user}) =
+      AuthStateAuthenticated;
+}
+
+// ---------------------------------------------------------------------------
+// InviteRequiresEmailConfirmationException
+// ---------------------------------------------------------------------------
+
+/// Thrown by [AuthController.register] when the target server has SMTP
+/// confirmation enabled for invited signups (`send_reg_magic_link` returned
+/// `mail_is_sent: true`). That flow requires the user to click a link
+/// emailed to them before a usable magic token exists, which this client
+/// doesn't implement — surfaced as a distinct error so the UI can show a
+/// specific message instead of a generic failure.
+class InviteRequiresEmailConfirmationException implements Exception {
+  const InviteRequiresEmailConfirmationException();
+}
+
+// ---------------------------------------------------------------------------
+// AuthController
+// ---------------------------------------------------------------------------
+
+@riverpod
+class AuthController extends _$AuthController {
+  /// Suppresses the store listeners' invalidateSelf while we are driving
+  /// server/account-id changes from inside login()/logout()/switchAccount()
+  /// ourselves. Without this, mutating the stores mid-operation invalidates
+  /// this very provider before the async flow finishes — triggering the
+  /// "Cannot use ref functions after the dependency of a provider changed"
+  /// assertion.
+  bool _suppressStoreReact = false;
+
+  @override
+  Future<AuthState> build() async {
+    bootLog('5 AuthController.build: enter');
+    // Listen — instead of watch — so updates to accountStore (e.g. login
+    // creating/selecting a new account, or the user switching accounts)
+    // trigger an explicit re-bootstrap rather than invalidating this
+    // provider mid-async-operation.
+    ref.listen<AsyncValue<AccountState>>(
+      accountStoreProvider,
+      (prev, next) {
+        if (_suppressStoreReact) return;
+        final prevId = prev?.valueOrNull?.currentAccountId;
+        final nextId = next.valueOrNull?.currentAccountId;
+        if (prevId != nextId) {
+          ref.invalidateSelf();
+        }
+      },
+    );
+    // Wait for both stores to finish loading before bootstrapping.
+    bootLog('6 AuthController.build: await stores.future');
+    await ref.read(serverStoreProvider.notifier).future;
+    await ref.read(accountStoreProvider.notifier).future;
+    // Organization info is public, so this also detects a server replacement
+    // when the app is currently logged out and before any account cache opens.
+    // Identity cleanup mutates AccountStore, so suppress the listener while
+    // this build is still deciding the initial auth state.
+    _suppressStoreReact = true;
+    try {
+      await checkServerIdentity();
+    } finally {
+      _suppressStoreReact = false;
+    }
+    bootLog('7 AuthController.build: stores ready, calling _bootstrap');
+    final result = await _bootstrap();
+    bootLog(
+        '8 AuthController.build: _bootstrap returned ${result.runtimeType}');
+    return result;
+  }
+
+  AccountConfig? _currentAccount() {
+    final accountState = ref.read(accountStoreProvider).valueOrNull;
+    final accountId = accountState?.currentAccountId;
+    if (accountId == null) return null;
+    return accountState?.accounts
+        .where((a) => a.accountId == accountId)
+        .firstOrNull;
+  }
+
+  /// Called at startup: reads stored tokens for the current account, refreshes
+  /// if expired, then validates via /api/user/me. The shared Dio client retries
+  /// temporary failures before we fall back to the saved account profile.
+  /// Only a confirmed credential rejection should return the user to login.
+  Future<AuthState> _bootstrap() async {
+    final account = _currentAccount();
+    AppLog.d(
+      LogTag.auth,
+      () => '🟦 bootstrap: accountId=${account?.accountId}',
+    );
+    if (account == null) {
+      if (ref.read(accountStoreProvider).valueOrNull?.currentAccountId !=
+          null) {
+        ref.read(authRestoreFailureProvider.notifier).state =
+            AuthRestoreFailure.missingAccount;
+      }
+      return const AuthState.unauthenticated();
+    }
+
+    // Keep the server store's currentServerId in sync with the account we're
+    // bootstrapping against — both stores are always written together by
+    // login()/switchAccount(), but this guards against them drifting apart
+    // (e.g. a persisted-state edge case) since dio's baseUrl is resolved
+    // from serverStore, not accountStore.
+    final serverState = ref.read(serverStoreProvider).valueOrNull;
+    if (serverState?.currentServerId != account.serverId) {
+      await ref
+          .read(serverStoreProvider.notifier)
+          .selectServer(account.serverId);
+    }
+
+    final tokenStore = ref.read(secureTokenStoreProvider(account.accountId));
+    try {
+      final tokens = await tokenStore.readTokens();
+      AppLog.d(
+        LogTag.auth,
+        () =>
+            '🟦 bootstrap: tokens=${tokens == null ? "null" : "ok expires=${tokens.expiresAt}"}',
+      );
+      if (tokens == null) {
+        ref.read(authRestoreFailureProvider.notifier).state =
+            AuthRestoreFailure.missingTokens;
+        return const AuthState.unauthenticated();
+      }
+
+      final api = ref.read(authApiProvider);
+
+      // Keep renewal failures distinguishable from rejected credentials. A
+      // phone may still be reconnecting to Wi-Fi when the process restarts.
+      if (tokens.expiresAt.isBefore(
+        DateTime.now().add(const Duration(seconds: 60)),
+      )) {
+        await _refreshTokens(api, tokenStore, tokens.refreshToken);
+      }
+
+      // Dio already refreshes on 401 and retries this request once. Starting
+      // another refresh here can reuse the old, already-rotated refresh token.
+      final user = await api.me();
+      AppLog.d(LogTag.auth, () => '🟦 bootstrap: me() ok uid=${user.uid}');
+      await _syncAccountProfile(account, user);
+      ref.read(authRestoreFailureProvider.notifier).state = null;
+      return AuthState.authenticated(user: user);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await tokenStore.clear();
+        ref.read(authRestoreFailureProvider.notifier).state =
+            AuthRestoreFailure.rejected;
+        return const AuthState.unauthenticated();
+      }
+      AppLog.w(LogTag.auth,
+          () => '🟦 bootstrap: server unavailable; keeping saved session: $e');
+    } catch (e) {
+      // An unexpected response or local profile-write failure is not proof
+      // that the credentials are invalid either. Keep them for recovery.
+      AppLog.w(LogTag.auth,
+          () => '🟦 bootstrap: validation failed; keeping saved session: $e');
+    }
+
+    // Local access to the existing account/cache remains available offline.
+    // Network requests still require the stored tokens, and the SSE reconnect
+    // path renews expired tokens when connectivity returns.
+    return AuthState.authenticated(
+      user: VoceUser(
+        uid: account.uid,
+        name: account.name,
+        email: account.email,
+        isAdmin: account.isAdmin,
+        avatarUpdatedAt: account.avatarUpdatedAt,
+      ),
+    );
+  }
+
+  /// Keep the saved [AccountConfig]'s display fields (name/email/avatar) in
+  /// sync with the latest `/api/user/me`, so the account-switcher list
+  /// doesn't show stale info after a profile edit.
+  Future<void> _syncAccountProfile(AccountConfig account, VoceUser user) async {
+    if (account.name == user.name &&
+        account.email == user.email &&
+        account.isAdmin == user.isAdmin &&
+        account.avatarUpdatedAt == user.avatarUpdatedAt) {
+      return;
+    }
+    await ref.read(accountStoreProvider.notifier).upsertAccount(
+          account.copyWith(
+            name: user.name,
+            email: user.email,
+            isAdmin: user.isAdmin,
+            avatarUpdatedAt: user.avatarUpdatedAt,
+          ),
+        );
+  }
+
+  /// Exchange refresh token for a new access token; persist on success.
+  Future<void> _refreshTokens(
+    AuthApi api,
+    SecureTokenStore tokenStore,
+    String refreshToken,
+  ) async {
+    final renew = await api.renew(refreshToken);
+    await tokenStore.saveTokens(
+      access: renew.token,
+      refresh: renew.refreshToken,
+      expiresAt: DateTime.now().add(Duration(seconds: renew.expiredIn)),
+    );
+  }
+
+  Future<bool> _tryRefresh(
+    AuthApi api,
+    SecureTokenStore tokenStore,
+    String refreshToken,
+  ) async {
+    try {
+      await _refreshTokens(api, tokenStore, refreshToken);
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await tokenStore.clear();
+        if (_currentAccount()?.accountId == tokenStore.id) {
+          ref.read(authRestoreFailureProvider.notifier).state =
+              AuthRestoreFailure.rejected;
+          state = const AsyncData(AuthState.unauthenticated());
+        }
+      }
+      AppLog.w(LogTag.auth, () => '🟦 _tryRefresh: failed: $e');
+      return false;
+    } catch (e) {
+      AppLog.w(LogTag.auth, () => '🟦 _tryRefresh: failed: $e');
+      return false;
+    }
+  }
+
+  /// Public wrapper around [_tryRefresh] for callers (e.g. the SSE provider)
+  /// that need to proactively renew the access token before opening a new
+  /// long-lived connection. Returns `true` if the token store now holds a
+  /// fresh token, `false` if renewal failed (network error, refresh token
+  /// rejected, etc.). Idempotent: returns `false` quietly when there is no
+  /// current account or no stored refresh token.
+  Future<bool> renewIfPossible() async {
+    final account = _currentAccount();
+    if (account == null) return false;
+    final tokenStore = ref.read(secureTokenStoreProvider(account.accountId));
+    final TokenData? tokens;
+    try {
+      tokens = await tokenStore.readTokens();
+    } catch (e) {
+      AppLog.d(LogTag.token, () => 'token renewal deferred: $e');
+      return false;
+    }
+    if (tokens == null) return false;
+    return _tryRefresh(
+        ref.read(authApiProvider), tokenStore, tokens.refreshToken);
+  }
+
+  Future<bool>? _serverIdentityCheck;
+
+  /// Probe the server before auth bootstrap, because an URL can now point at a
+  /// different VoceChat installation while retaining all of the app's local
+  /// state. This mirrors the web client's organization/server_id check, but
+  /// clears only accounts tied to the replaced server and the global media
+  /// cache (media files are not currently partitioned by server on disk).
+  /// Returns true when local accounts were removed because the server instance
+  /// changed. Callers switching to a saved account can then require login.
+  Future<bool> checkServerIdentity([String? requestedBaseUrl]) {
+    return _serverIdentityCheck ??= _doCheckServerIdentity(requestedBaseUrl)
+        .whenComplete(() => _serverIdentityCheck = null);
+  }
+
+  Future<bool> _doCheckServerIdentity(String? requestedBaseUrl) async {
+    final serverState = ref.read(serverStoreProvider).valueOrNull;
+    if (serverState == null) return false;
+    final normalizedRequested =
+        requestedBaseUrl?.trim().replaceAll(RegExp(r'/+$'), '');
+    final config = serverState.servers.where((server) {
+      if (normalizedRequested != null && normalizedRequested.isNotEmpty) {
+        return server.baseUrl.trim().replaceAll(RegExp(r'/+$'), '') ==
+            normalizedRequested;
+      }
+      return server.id == serverState.currentServerId;
+    }).firstOrNull;
+    if (config == null) return false;
+
+    final baseUrl = config.baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    try {
+      // Public, bounded and independent of token refresh. The picker hands
+      // over its successful probe once, avoiding a second network wait.
+      final body =
+          await ref.read(serverConnectionProvider).organizationForAuth(baseUrl);
+      final value = body['server_id'];
+      final remoteId = value is String ? value.trim() : null;
+      // Old servers/databases may return null. Keep their existing behavior.
+      if (remoteId == null ||
+          remoteId.isEmpty ||
+          remoteId == config.organizationServerId) {
+        return false;
+      }
+
+      // Older clients only saved LoginResponse.server_id as config.id. That
+      // ID comes from key.json; the public organization UUID comes from a
+      // separate database entry. Establish its own baseline on first read,
+      // including upgrades with an existing session. A cross-namespace
+      // mismatch is not evidence that the server was replaced. Bootstrap
+      // still validates the existing tokens normally after this probe.
+      if (config.organizationServerId == null) {
+        await ref
+            .read(serverStoreProvider.notifier)
+            .setOrganizationServerId(config.id, remoteId);
+        return false;
+      }
+
+      final accountState = ref.read(accountStoreProvider).valueOrNull;
+      final accounts = accountState?.accounts
+              .where((account) => account.serverId == config.id)
+              .toList() ??
+          const <AccountConfig>[];
+      final oldServerStore = ref.read(secureTokenStoreProvider(config.id));
+      final oldRemembered = await oldServerStore.readRememberedCredential();
+      final oldTokens = await oldServerStore.readTokens();
+      final hadServerLocalData = accounts.isNotEmpty || oldTokens != null;
+
+      if (hadServerLocalData) {
+        // Clear every account on the replaced server, not only the active one.
+        // Otherwise a later account switch would resurrect old messages/tokens.
+        final currentAccountId = accountState?.currentAccountId;
+        final activeCache = ref.read(messageCacheProvider).valueOrNull;
+        for (final account in accounts) {
+          await ref.read(secureTokenStoreProvider(account.accountId)).clear();
+          if (account.accountId == currentAccountId && activeCache != null) {
+            // Reuse the provider's open connection for the active account;
+            // opening a second SQLite handle here can race with SSE writes.
+            await activeCache.clearAll();
+          } else {
+            await MessageCache.clearForAccount(account.accountId);
+          }
+        }
+        await oldServerStore.clear();
+        await oldServerStore.clearRememberedCredential();
+        await MediaCache.clear();
+        await ref
+            .read(accountStoreProvider.notifier)
+            .removeAccountsForServer(config.id);
+        ref.read(authRestoreFailureProvider.notifier).state =
+            AuthRestoreFailure.serverChanged;
+      } else if (oldRemembered != null) {
+        // Remembered credentials belong to the old server identity too. Do
+        // not carry them across an instance replacement, or the next login
+        // could submit an old server's credentials to the new installation.
+        await oldServerStore.clearRememberedCredential();
+      }
+
+      await ref
+          .read(serverStoreProvider.notifier)
+          .setOrganizationServerId(config.id, remoteId);
+      AppLog.w(
+        LogTag.auth,
+        () =>
+            'organization identity changed: ${config.organizationServerId} -> $remoteId; local data cleared',
+      );
+      return hadServerLocalData;
+    } catch (e) {
+      // Identity probing must not make an otherwise reachable old server
+      // unusable, especially during offline startup.
+      AppLog.d(LogTag.auth, () => 'server identity probe skipped: $e');
+      return false;
+    }
+  }
+
+  /// Align the local server entry with the server-issued id, so token
+  /// namespace and currentServerId stay in sync — and we never grow the
+  /// servers list with a duplicate on every login.
+  ///
+  /// [targetBaseUrl] is the base URL the login/register call actually hit —
+  /// normally the currently-configured server, but may point at a different
+  /// server entirely when logging into a second account elsewhere (see
+  /// [login]'s `serverUrl` override). Matching by id first (same server as
+  /// before) then by normalized baseUrl (a server already saved under a
+  /// different local id) avoids creating duplicate [ServerConfig] entries.
+  Future<void> _reconcileServerEntry(
+    String responseServerId,
+    String targetBaseUrl,
+  ) async {
+    final serverStore = ref.read(serverStoreProvider.notifier);
+    final existing = ref.read(serverStoreProvider).valueOrNull;
+    final normalized = targetBaseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+
+    if (existing?.servers.any((s) => s.id == responseServerId) ?? false) {
+      if (existing?.currentServerId != responseServerId) {
+        await serverStore.selectServer(responseServerId);
+      }
+      return;
+    }
+
+    final matchByUrl = existing?.servers
+        .where((s) =>
+            s.baseUrl.trim().replaceAll(RegExp(r'/+$'), '') == normalized)
+        .firstOrNull;
+    if (matchByUrl != null) {
+      await serverStore.replaceServerId(
+        oldId: matchByUrl.id,
+        newId: responseServerId,
+      );
+    } else {
+      await serverStore.addServer(ServerConfig(
+        id: responseServerId,
+        baseUrl: normalized,
+        name: Uri.tryParse(normalized)?.host ?? normalized,
+      ));
+    }
+    await serverStore.selectServer(responseServerId);
+  }
+
+  /// Login with email + password, including the web credential fallback.
+  ///
+  /// [serverUrl], when provided, targets that server instead of the
+  /// currently-configured one — used by the account-switcher's "Add
+  /// account" screen to sign into a second identity on a different
+  /// VoceChat server. The request is issued through a scoped, disposable
+  /// [VoceDioClient] (same interceptor stack: Referer injection, UTF-16
+  /// sanitization, error mapping) rather than the shared [dioClientProvider],
+  /// so the currently-active session's Dio instance — and any in-flight
+  /// requests relying on it — are left untouched until this login succeeds.
+  Future<void> login(
+    String email,
+    String password, {
+    bool rememberMe = false,
+    String? serverUrl,
+  }) async {
+    // If we're already authenticated as some account, this call is the
+    // account-switcher's "add account" flow signing in a *second* identity
+    // alongside it (the router only allows /login while unauthenticated, so
+    // the primary sign-in screen never reaches this branch). On failure we
+    // must not let the currently-active account's session be replaced by a
+    // global AsyncError — see below.
+    final previousAuthenticated = state.valueOrNull;
+    final isAddingSecondAccount =
+        previousAuthenticated is AuthStateAuthenticated;
+
+    // Preserve the previous value (hasValue stays true) instead of a bare
+    // AsyncLoading(). The router's redirect uses `authAsync.hasValue` to
+    // distinguish this in-flight login from the app's initial auth
+    // bootstrap — a bare loading state would be indistinguishable from
+    // startup and force a /splash redirect mid-login, tearing down
+    // LoginScreen before the error/success ever reaches it.
+    // isRefresh: false is required — with the default `true`, copying over
+    // a previous AsyncError produces another AsyncError (just isLoading:
+    // true), not a real AsyncLoading. `ref.listen`'s `whenOrNull` would then
+    // treat that as `isRefreshing` and re-fire the *stale* error callback
+    // (e.g. re-showing "wrong password" from a prior attempt) a split
+    // second before the new, successful result lands.
+    state = AsyncLoading<AuthState>().copyWithPrevious(state, isRefresh: false);
+
+    final result = await AsyncValue.guard(() async {
+      _suppressStoreReact = true;
+      try {
+        final currentServer = ref.read(serverStoreProvider).valueOrNull;
+        final currentBaseUrl = currentServer?.servers
+                .where((s) => s.id == currentServer.currentServerId)
+                .firstOrNull
+                ?.baseUrl ??
+            '';
+        final targetBaseUrl = (serverUrl != null && serverUrl.trim().isNotEmpty)
+            ? serverUrl.trim().replaceAll(RegExp(r'/+$'), '')
+            : currentBaseUrl;
+        final api = targetBaseUrl == currentBaseUrl
+            ? ref.read(authApiProvider)
+            : AuthApi(VoceDioClient(baseUrl: targetBaseUrl, ref: ref).dio);
+
+        final deviceToken = await getFcmDeviceToken();
+        final response = await api.loginWithPassword(
+          email: email,
+          password: password,
+          device: await ref.read(loginDeviceIdProvider.future),
+          deviceToken: deviceToken.isEmpty ? null : deviceToken,
+        );
+
+        // Recheck the organization UUID in case the installation changed
+        // while login was open, then align the separate login ID namespace.
+        await checkServerIdentity(targetBaseUrl);
+        await _reconcileServerEntry(response.serverId, targetBaseUrl);
+
+        // Save tokens under an account-scoped key so the same server can
+        // hold multiple logged-in accounts side by side.
+        final accountId =
+            AccountStore.makeId(response.serverId, response.user.uid);
+        final tokenStore = ref.read(secureTokenStoreProvider(accountId));
+        await tokenStore.saveTokens(
+          access: response.token,
+          refresh: response.refreshToken,
+          expiresAt: DateTime.now().add(Duration(seconds: response.expiredIn)),
+        );
+        AppLog.d(
+          LogTag.auth,
+          () =>
+              '🟢 login: tokens saved for accountId=$accountId expires=${DateTime.now().add(Duration(seconds: response.expiredIn))}',
+        );
+
+        await ref.read(accountStoreProvider.notifier).upsertAccount(
+              AccountConfig(
+                accountId: accountId,
+                serverId: response.serverId,
+                uid: response.user.uid,
+                name: response.user.name,
+                email: response.user.email,
+                isAdmin: response.user.isAdmin,
+                avatarUpdatedAt: response.user.avatarUpdatedAt,
+              ),
+            );
+        await ref.read(accountStoreProvider.notifier).selectAccount(accountId);
+
+        // Remembered credentials are pre-login convenience — keyed by
+        // serverId (not accountId) since we don't know the uid until after
+        // login succeeds.
+        final rememberStore =
+            ref.read(secureTokenStoreProvider(response.serverId));
+        if (rememberMe) {
+          await rememberStore.saveRememberedCredential(
+            email: email,
+            password: password,
+          );
+        } else {
+          await rememberStore.clearRememberedCredential();
+        }
+
+        ref.read(authRestoreFailureProvider.notifier).state = null;
+        return AuthState.authenticated(user: response.user);
+      } catch (e, st) {
+        AppLog.e(LogTag.auth, () => '🔴 login() failed: $e',
+            error: e, stackTrace: st);
+        rethrow;
+      } finally {
+        _suppressStoreReact = false;
+      }
+    });
+
+    if (result.hasError && isAddingSecondAccount) {
+      // Restore the still-active first account instead of surfacing this
+      // failure through the shared global state — otherwise the router's
+      // redirect sees "unauthenticated" and force-navigates the whole app to
+      // /login, tearing down the imperatively-pushed "add account" screen
+      // before it can show its own inline error. The add-account screen's
+      // own try/catch handles this rethrown error directly.
+      state = AsyncData(previousAuthenticated);
+      final error = result.error!;
+      final stackTrace = result.stackTrace!;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+
+    state = result;
+  }
+
+  /// Logout the current account: clears its tokens and resets auth state.
+  /// The [AccountConfig] entry itself is kept (not removed) so it still
+  /// appears in the account switcher for a quick re-login — mirroring how a
+  /// signed-out browser tab still remembers "who" was signed in.
+  Future<void> logout() async {
+    ref.read(authRestoreFailureProvider.notifier).state = null;
+    try {
+      await ref.read(authApiProvider).logout();
+    } catch (_) {
+      // Best-effort — always clear locally
+    }
+
+    final account = _currentAccount();
+    if (account != null) {
+      await ref.read(secureTokenStoreProvider(account.accountId)).clear();
+    }
+
+    _suppressStoreReact = true;
+    try {
+      await ref.read(accountStoreProvider.notifier).clearCurrentAccount();
+    } finally {
+      _suppressStoreReact = false;
+    }
+
+    state = const AsyncData(AuthState.unauthenticated());
+  }
+
+  /// Permanently delete the current user from the server. Local credentials
+  /// and the saved account entry are removed only after the server confirms
+  /// deletion, so a failed request leaves the current session recoverable.
+  Future<void> deleteCurrentAccount() async {
+    final account = _currentAccount();
+    if (account == null) return;
+
+    await ref.read(authApiProvider).deleteCurrentAccount();
+    await ref.read(secureTokenStoreProvider(account.accountId)).clear();
+
+    _suppressStoreReact = true;
+    try {
+      await ref
+          .read(accountStoreProvider.notifier)
+          .removeAccount(account.accountId);
+    } finally {
+      _suppressStoreReact = false;
+    }
+
+    state = const AsyncData(AuthState.unauthenticated());
+  }
+
+  /// Remove a saved account entirely (clears its tokens and drops it from
+  /// the switcher list). If it was the current account, resulting state is
+  /// `unauthenticated`.
+  Future<void> removeAccount(String accountId) async {
+    await ref.read(secureTokenStoreProvider(accountId)).clear();
+    final wasCurrent =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId ==
+            accountId;
+
+    _suppressStoreReact = true;
+    try {
+      await ref.read(accountStoreProvider.notifier).removeAccount(accountId);
+    } finally {
+      _suppressStoreReact = false;
+    }
+
+    if (wasCurrent) {
+      state = const AsyncData(AuthState.unauthenticated());
+    }
+  }
+
+  /// Forget a local endpoint without revoking tokens or removing history.
+  /// Detach its active account so background connections cannot keep using it.
+  Future<void> forgetServer(String serverId) async {
+    final servers = ref.read(serverStoreProvider.notifier);
+    final accounts = ref.read(accountStoreProvider.notifier);
+    final serverState = await servers.future;
+    final accountState = await accounts.future;
+    final activeId = accountState.currentAccountId;
+    final detach = accountState.accounts
+        .any((a) => a.accountId == activeId && a.serverId == serverId);
+    final previousSuppression = _suppressStoreReact;
+    _suppressStoreReact = true;
+    try {
+      if (detach) await accounts.clearCurrentAccount();
+      try {
+        await servers.removeServer(serverId);
+      } catch (_) {
+        // A failed local removal must not silently sign out the account.
+        if (detach && activeId != null) await accounts.selectAccount(activeId);
+        rethrow;
+      }
+    } finally {
+      _suppressStoreReact = previousSuppression;
+    }
+    if (detach || serverState.currentServerId == serverId) ref.invalidateSelf();
+  }
+
+  /// Switch to a different saved account (same or different server) without
+  /// requiring the user to log out first. Attempts a silent token
+  /// revalidation/refresh against the target account; if that fails (expired
+  /// refresh token, revoked session, etc.) the resulting state is
+  /// `unauthenticated` and the caller is expected to route to `/login`.
+  Future<void> switchAccount(String accountId) async {
+    final accountState = ref.read(accountStoreProvider).valueOrNull;
+    final target = accountState?.accounts
+        .where((a) => a.accountId == accountId)
+        .firstOrNull;
+    if (target == null) return;
+    if (accountState?.currentAccountId == accountId) return;
+
+    final previous = state;
+    final previousServerId =
+        ref.read(serverStoreProvider).valueOrNull?.currentServerId;
+    state = AsyncLoading<AuthState>().copyWithPrevious(state, isRefresh: false);
+
+    _suppressStoreReact = true;
+    try {
+      final server = ref
+          .read(serverStoreProvider)
+          .valueOrNull
+          ?.servers
+          .where((s) => s.id == target.serverId)
+          .firstOrNull;
+      final identityChanged = await checkServerIdentity(server?.baseUrl);
+      if (identityChanged) {
+        await ref.read(accountStoreProvider.notifier).clearCurrentAccount();
+        state = const AsyncData(AuthState.unauthenticated());
+        return;
+      }
+      await ref
+          .read(serverStoreProvider.notifier)
+          .selectServer(target.serverId);
+      await ref.read(accountStoreProvider.notifier).selectAccount(accountId);
+      state = AsyncData(await _bootstrap());
+    } catch (error, stackTrace) {
+      // Store failures can happen before or after the selected account moves.
+      // Preserve the old session only while both pointers still refer to it;
+      // otherwise let the normal auth guard show login. Always leave loading.
+      final unchanged =
+          ref.read(accountStoreProvider).valueOrNull?.currentAccountId ==
+                  accountState?.currentAccountId &&
+              ref.read(serverStoreProvider).valueOrNull?.currentServerId ==
+                  previousServerId;
+      state = unchanged ? previous : AsyncError(error, stackTrace);
+      rethrow;
+    } finally {
+      _suppressStoreReact = false;
+    }
+  }
+
+  /// Register a new account and auto-login on success.
+  ///
+  /// [magicToken], when provided, is an invitation token obtained from an
+  /// invite link (see `parseInviteLink`). It is re-minted via
+  /// `send_reg_magic_link` first — servers with SMTP confirmation enabled
+  /// withhold a usable token there (`mailIsSent: true`), a flow this client
+  /// doesn't support yet, so that case throws [InviteRequiresEmailConfirmationException]
+  /// instead of silently failing the subsequent register call.
+  Future<void> register(
+    String name,
+    String email,
+    String password, {
+    String? magicToken,
+  }) async {
+    // See login() — preserve hasValue so the router's redirect doesn't
+    // mistake this in-flight registration for the initial auth bootstrap.
+    // isRefresh: false — see login() for why the default true is wrong here.
+    state = AsyncLoading<AuthState>().copyWithPrevious(state, isRefresh: false);
+
+    state = await AsyncValue.guard(() async {
+      _suppressStoreReact = true;
+      try {
+        final api = ref.read(authApiProvider);
+
+        String? effectiveMagicToken = magicToken;
+        if (magicToken != null) {
+          final sendResult = await api.sendRegMagicLink(
+            magicToken: magicToken,
+            email: email,
+            password: password,
+          );
+          if (sendResult.mailIsSent) {
+            throw const InviteRequiresEmailConfirmationException();
+          }
+          effectiveMagicToken = sendResult.newMagicToken;
+        }
+
+        final response = await api.register(
+          email: email,
+          password: password,
+          name: name,
+          magicToken: effectiveMagicToken,
+        );
+
+        final currentServer = ref.read(serverStoreProvider).valueOrNull;
+        final currentBaseUrl = currentServer?.servers
+                .where((s) => s.id == currentServer.currentServerId)
+                .firstOrNull
+                ?.baseUrl ??
+            '';
+        // Registration responses also carry server_id; use the same
+        // replacement check as password login before creating new local data.
+        await checkServerIdentity(currentBaseUrl);
+        await _reconcileServerEntry(response.serverId, currentBaseUrl);
+
+        final accountId =
+            AccountStore.makeId(response.serverId, response.user.uid);
+        final tokenStore = ref.read(secureTokenStoreProvider(accountId));
+        await tokenStore.saveTokens(
+          access: response.token,
+          refresh: response.refreshToken,
+          expiresAt: DateTime.now().add(Duration(seconds: response.expiredIn)),
+        );
+
+        await ref.read(accountStoreProvider.notifier).upsertAccount(
+              AccountConfig(
+                accountId: accountId,
+                serverId: response.serverId,
+                uid: response.user.uid,
+                name: response.user.name,
+                email: response.user.email,
+                isAdmin: response.user.isAdmin,
+                avatarUpdatedAt: response.user.avatarUpdatedAt,
+              ),
+            );
+        await ref.read(accountStoreProvider.notifier).selectAccount(accountId);
+
+        // Best-effort: upload the FCM token so this device receives pushes.
+        // Failures are silently swallowed — registration itself has succeeded.
+        final regDeviceToken = await getFcmDeviceToken();
+        if (regDeviceToken.isNotEmpty) {
+          try {
+            await api.updateDeviceToken(regDeviceToken);
+          } catch (_) {}
+        }
+
+        return AuthState.authenticated(user: response.user);
+      } finally {
+        _suppressStoreReact = false;
+      }
+    });
+  }
+
+  /// Re-validate tokens and refresh user state.
+  Future<void> bootstrap() async {
+    // See login() — preserve hasValue so a re-validation triggered while
+    // already authenticated/unauthenticated doesn't look like the app's
+    // initial auth bootstrap to the router's redirect logic.
+    // isRefresh: false — see login() for why the default true is wrong here.
+    state = AsyncLoading<AuthState>().copyWithPrevious(state, isRefresh: false);
+    state = await AsyncValue.guard(_bootstrap);
+  }
+
+  /// Re-fetch `/api/user/me` and update [state] in place, without the token
+  /// re-validation `_bootstrap()` does. Used after a profile edit (name,
+  /// avatar) so the rest of the app picks up the fresh `VoceUser` (e.g. the
+  /// updated `avatarUpdatedAt` for cache-busting) without a jarring loading
+  /// flash or redundant refresh-token exchange. No-op if not authenticated.
+  Future<void> refreshUser() async {
+    final current = state.valueOrNull;
+    if (current is! AuthStateAuthenticated) return;
+    try {
+      final user = await ref.read(authApiProvider).me();
+      final account = _currentAccount();
+      if (account != null) {
+        await _syncAccountProfile(account, user);
+      }
+      state = AsyncData(AuthState.authenticated(user: user));
+    } catch (e) {
+      AppLog.w(LogTag.auth, () => '🟦 refreshUser: me() failed: $e');
+      // Best-effort — keep the previous state on failure.
+    }
+  }
+}

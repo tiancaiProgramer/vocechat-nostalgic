@@ -1,0 +1,64 @@
+name: Build macOS Desktop App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Flutter with Cache
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        # 🌟 开启官方 Flutter 缓存：如果缓存命中，将直接跳过下载和解压 SDK 的过程
+        cache: true
+        # 可以显式指定一个固定的缓存 Key，方便管理（可选）
+        cache-key: "flutter-:channel:-:version:-:arch:-:hash:"
+
+    - name: Cache Pub dependencies
+      # 🌟 顺便把 pub get 的依赖包也缓存起来，避免每次都去网络下载依赖
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.pub-cache
+          .dart_tool/pub
+        key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pub-
+
+    - name: Install Tools
+      run: |
+        brew install create-dmg
+
+    - name: Install dependencies
+      run: |
+        flutter pub get
+        cd macos && pod install
+
+    - name: Build macOS App
+      run: flutter build macos --release
+
+    - name: Create DMG Packages
+      run: |
+        cd build/macos/Build/Products/Release/
+        create-dmg \
+          --volname "VoceChat Installer" \
+          --window-pos 200 120 \
+          --window-size 600 400 \
+          --icon-size 100 \
+          --icon "VoceChat.app" 175 120 \
+          --hide-extension "VoceChat.app" \
+          --app-drop-link 425 120 \
+          "VoceChat-Client-Installer.dmg" "VoceChat.app"
+
+    - name: Upload DMG Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: VoceChat-macOS-Installer
+        path: build/macos/Build/Products/Release/VoceChat-Client-Installer.dmg

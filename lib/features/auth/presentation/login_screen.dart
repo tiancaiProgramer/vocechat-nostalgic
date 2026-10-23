@@ -1,0 +1,467 @@
+import 'package:flutter/cupertino.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/network/dio_client.dart';
+import '../../../core/storage/secure_token_store.dart';
+import '../../../core/storage/preference_write.dart';
+import '../../../core/storage/server_store.dart';
+import '../../../core/utils/safe_text.dart';
+import '../../../features/messages/application/message_dispatcher.dart';
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/utils/email_validator.dart';
+import '../../../shared/widgets/primary_button.dart';
+import '../application/auth_controller.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with WidgetsBindingObserver {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool _obscurePassword = true;
+  bool _rememberMe = false;
+  bool _rememberedReadFailed = false;
+  bool _credentialEdited = false;
+  int _credentialLoad = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadRememberedCredential();
+  }
+
+  Future<void> _loadRememberedCredential() async {
+    final generation = ++_credentialLoad;
+    try {
+      final serverState = await ref.read(serverStoreProvider.future);
+      if (!mounted || generation != _credentialLoad) return;
+      final serverId = serverState.currentServerId;
+      if (serverId == null) return;
+      final remembered = await ref
+          .read(secureTokenStoreProvider(serverId))
+          .readRememberedCredential();
+      if (!mounted ||
+          generation != _credentialLoad ||
+          ref.read(serverStoreProvider).valueOrNull?.currentServerId !=
+              serverId) {
+        return;
+      }
+      setState(() {
+        _rememberedReadFailed = false;
+        // A slow storage read must not overwrite credentials already typed
+        // by the user, or undo their explicit remember-password choice.
+        if (remembered != null && !_credentialEdited) {
+          _emailCtrl.text = remembered.email;
+          _passwordCtrl.text = remembered.password;
+          _rememberMe = true;
+        }
+      });
+    } catch (_) {
+      if (!mounted || generation != _credentialLoad) return;
+      setState(() => _rememberedReadFailed = true);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _rememberedReadFailed) {
+      _loadRememberedCredential();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _serverName {
+    final state = ref.watch(serverStoreProvider).valueOrNull;
+    if (state == null) return '';
+    final current =
+        state.servers.where((s) => s.id == state.currentServerId).firstOrNull;
+    return current?.name ?? current?.baseUrl ?? '';
+  }
+
+  Future<void> _signIn() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    // Ignore Enter-key submits while a login is already in flight.
+    if (ref.read(authControllerProvider).isLoading) return;
+
+    // Navigation + error surfacing happen in the ref.listen below — doing it
+    // here as well produced duplicate snackbars / double context.go.
+    await ref.read(authControllerProvider.notifier).login(
+          _emailCtrl.text.trim(),
+          _passwordCtrl.text,
+          rememberMe: _rememberMe,
+        );
+  }
+
+  void _showUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppL10n.of(context).featureUnavailable),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final l = AppL10n.of(context);
+    final restoreFailure = ref.watch(authRestoreFailureProvider);
+    final restoreMessage = switch (restoreFailure) {
+      AuthRestoreFailure.missingAccount ||
+      AuthRestoreFailure.missingTokens =>
+        l.authSavedSessionMissing,
+      AuthRestoreFailure.rejected => l.authSavedSessionRejected,
+      AuthRestoreFailure.serverChanged => l.authServerChanged,
+      null => null,
+    };
+    ref.listen(
+      serverStoreProvider.select((value) => value.valueOrNull?.currentServerId),
+      (previous, next) {
+        if (previous == next) return;
+        _credentialLoad++;
+        if (previous != null) {
+          _credentialEdited = false;
+          _emailCtrl.clear();
+          _passwordCtrl.clear();
+          setState(() => _rememberMe = false);
+        }
+        _loadRememberedCredential();
+      },
+    );
+
+    // Listen for auth state changes to navigate
+    ref.listen(authControllerProvider, (_, next) {
+      next.whenOrNull(
+        data: (state) {
+          if (state is AuthStateAuthenticated && mounted) {
+            context.go('/home');
+          }
+        },
+        error: (e, _) {
+          if (!mounted) return;
+          final msg = _loginErrorMessage(context, e);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(safeText(msg))));
+        },
+      );
+    });
+
+    // Surface any pending kick reason from the SSE stream. Mirrors the web
+    // reference: a `kick` event has just logged us out and we want the user
+    // to know why before they re-enter credentials.
+    final kickReason = ref.watch(kickReasonProvider);
+    if (kickReason != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final l = AppL10n.of(context);
+        final text = switch (kickReason) {
+          'login_from_other_device' => l.authKickedFromOtherDevice,
+          'delete_user' => l.authAccountDeleted,
+          _ => l.authSessionEnded,
+        };
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(safeText(text))));
+        ref.read(kickReasonProvider.notifier).clear();
+      });
+    }
+
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topRight,
+            radius: .9,
+            colors: [Color(0xFF0071EC), Color(0xFFA2C9F3), Color(0xFFE9EBED)],
+            stops: [0, .6, 1],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: Form(
+              key: _formKey,
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                        alignment: Alignment.centerLeft,
+                        child: CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            onPressed: () => context.go('/server-picker'),
+                            child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: const BoxDecoration(
+                                    color: Color(0xFF06B6D4),
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.arrow_back,
+                                    color: Colors.white, size: 24)))),
+                    const SizedBox(height: 20),
+                    Text.rich(
+                        TextSpan(children: [
+                          TextSpan(
+                              text: '${l.loginSignIn} ',
+                              style: const TextStyle(color: Color(0xFF06B6D4))),
+                          TextSpan(
+                              text: safeText(_serverName),
+                              style: const TextStyle(color: Color(0xFF0071EC))),
+                        ]),
+                        style: const TextStyle(
+                            fontSize: 28, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Text(
+                        safeText(ref
+                                .watch(serverStoreProvider)
+                                .valueOrNull
+                                ?.servers
+                                .where((s) =>
+                                    s.id ==
+                                    ref
+                                        .watch(serverStoreProvider)
+                                        .valueOrNull
+                                        ?.currentServerId)
+                                .firstOrNull
+                                ?.baseUrl ??
+                            ''),
+                        style: TextStyle(
+                            fontSize: 14, color: cs.onSurfaceVariant)),
+                    const SizedBox(height: 72),
+                    if (restoreMessage != null) ...[
+                      Text(
+                        restoreMessage,
+                        key: const Key('auth-restore-reason'),
+                        style: TextStyle(color: cs.error),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (_rememberedReadFailed) ...[
+                      Text(
+                        l.authRememberedReadFailed,
+                        style: TextStyle(color: cs.error),
+                      ),
+                      TextButton(
+                        onPressed: _loadRememberedCredential,
+                        child: Text(l.authRetrySavedPassword),
+                      ),
+                    ],
+                    Text(l.loginEmail, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _emailCtrl,
+                      onChanged: (_) => _credentialEdited = true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(6)),
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6)),
+                        ),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return l.loginEmailRequired;
+                        }
+                        if (!isValidEmail(v)) {
+                          return l.loginEmailInvalid;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    Text(l.loginPassword, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _passwordCtrl,
+                      onChanged: (_) => _credentialEdited = true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(6)),
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6)),
+                        ),
+                        suffixIcon: IconButton(
+                          tooltip: _obscurePassword
+                              ? l.tooltipShowPassword
+                              : l.tooltipHidePassword,
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                      ),
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onFieldSubmitted: (_) => _signIn(),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return l.loginPasswordRequired;
+                        }
+                        if (v.length < 6) {
+                          return l.loginPasswordTooShort;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Text(l.loginRememberMe,
+                                style: const TextStyle(fontSize: 16))),
+                        CupertinoSwitch(
+                            value: _rememberMe,
+                            onChanged: (v) => setState(() {
+                                  _credentialEdited = true;
+                                  _rememberMe = v;
+                                }),
+                            activeTrackColor: const Color(0xFF06B6D4)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    PrimaryButton(
+                      label: l.loginSignIn,
+                      isLoading: isLoading,
+                      onPressed: isLoading ? null : _signIn,
+                    ),
+                    const SizedBox(height: 16),
+                    _TertiaryRow(
+                      actions: [
+                        _TertiaryAction(
+                          icon: Icons.auto_awesome_outlined,
+                          label: l.loginMagicLink,
+                          onTap: _showUnavailable,
+                        ),
+                        _TertiaryAction(
+                          icon: Icons.fingerprint,
+                          label: l.loginPasskey,
+                          onTap: _showUnavailable,
+                        ),
+                        _TertiaryAction(
+                          icon: Icons.dns_outlined,
+                          label: l.loginSwitchServer,
+                          onTap: () => context.go('/server-picker'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            l.loginNoAccount,
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => context.go('/register'),
+                          child: Text(l.loginSignUp),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Maps a login failure to a specific, localized reason instead of a raw
+/// exception string. Status codes follow the server's `LoginApiResponse`
+/// (`vocechat-server/src/api/token.rs`); status 0 is what `dio_client.dart`
+/// assigns to network/timeout/TLS failures that never reached the server.
+String _loginErrorMessage(BuildContext context, Object error) {
+  final l = AppL10n.of(context);
+  if (error is PlatformException || error is PreferenceWriteException) {
+    return l.authSaveFailed;
+  }
+  if (error is DioException && error.error is ApiException) {
+    final status = (error.error as ApiException).status;
+    return switch (status) {
+      401 || 404 => l.loginErrorInvalidCredentials,
+      423 => l.loginErrorAccountFrozen,
+      410 => l.loginErrorNotInvited,
+      403 => l.loginErrorMethodNotSupported,
+      0 => l.loginErrorCannotReachServer,
+      _ => (error.error as ApiException).message,
+    };
+  }
+  return error.toString();
+}
+
+class _TertiaryAction {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _TertiaryAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+}
+
+class _TertiaryRow extends StatelessWidget {
+  final List<_TertiaryAction> actions;
+  const _TertiaryRow({required this.actions});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: actions
+          .map(
+            (a) => TextButton.icon(
+              onPressed: a.onTap,
+              icon: Icon(a.icon, size: 16),
+              label: Text(a.label),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            ),
+          )
+          .toList(),
+    );
+  }
+}

@@ -1,0 +1,188 @@
+name: vocechat_client
+description: "VoceChat cross-platform client"
+publish_to: 'none'
+
+version: 0.3.33+3106
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  permission_handler: ^11.3.1
+
+  # State/data
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Routing
+  go_router: ^14.6.2
+
+  # Deep linking (Android/iOS custom URL scheme for invitation links)
+  app_links: ^6.3.2
+
+  # Networking
+  mime: ^2.0.0
+  dio: ^5.7.0
+  dio_smart_retry: ^7.0.1
+  connectivity_plus: ^6.0.5
+
+  # SSE
+  flutter_client_sse: ^2.0.3
+  web_socket_channel: ^3.0.3
+
+  # Storage
+  shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.2
+  path_provider: ^2.1.5
+  sqflite: ^2.4.1
+  sqflite_common_ffi: ^2.3.3
+
+  # Logging
+  logger: ^2.5.0
+
+  # Image
+  cached_network_image: ^3.4.1
+  # Disk cache backing cached_network_image — declared explicitly so the
+  # clear-cache action can call DefaultCacheManager().emptyCache().
+  flutter_cache_manager: ^3.4.1
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
+  # Android-only: writes image/video downloads to DCIM/vocechat and other
+  # attachments to Download/vocechat via MediaStore (API 30+) or a direct
+  # file copy (API <=29), with no SAF picker prompt.
+  media_store_plus: ^0.1.3
+  photo_view: ^0.15.0
+  # In-app photo-gallery grid for the mobile attachment sheet (image_picker
+  # has no gallery-browsing UI, only a single-shot native picker).
+  photo_manager: ^3.11.0
+  # AssetEntityImage/AssetEntityImageProvider live in a separate package
+  # since photo_manager v3.0.0.
+  photo_manager_image_provider: ^2.2.0
+
+  # Clipboard (cross-platform image/file paste — text-only Clipboard from
+  # flutter/services cannot read image bytes)
+  super_clipboard: ^0.8.24
+
+  # Native file drag-and-drop onto the chat surface (web parity with the
+  # `DnDTip` drop overlay). Desktop + web; mobile has no native DnD.
+  desktop_drop: ^0.7.1
+  # XFile type used by desktop_drop's drop payload.
+  cross_file: ^0.3.4+2
+
+  # Media playback
+  video_player: ^2.9.2
+  # video_player has no Windows/Linux backend upstream — fvp registers a
+  # hardware-decoded (D3D11/DXVA on Windows) implementation for those
+  # platforms while leaving Android/iOS/web on the official implementation.
+  fvp: ^0.37.3
+  chewie: ^1.8.5
+  just_audio: ^0.9.42
+  # Native Range proxy: video_player reads 2 MB segments while the same bytes
+  # are persisted into a size-bounded LRU cache for later/offline playback.
+  flutter_video_caching: 1.1.6
+  # just_audio ships no Windows/Linux implementation. media_kit supplies both
+  # while leaving Android/iOS/macOS on just_audio's native backends.
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_linux: ^1.2.1
+  media_kit_libs_windows_audio: ^1.0.9
+
+  # Media capture (voice/video messages)
+  record: ^6.2.1
+  camera: ^0.11.0+2
+
+  # External
+  url_launcher: ^6.3.1
+
+  # App metadata (version/build number for the About page)
+  package_info_plus: ^8.0.0
+
+  # Markdown
+  flutter_markdown: ^0.7.4+3
+
+  # Swipe-to-reveal actions on chat list rows
+  flutter_slidable: ^3.1.0
+
+  # Date
+  intl: any
+
+  # Push notifications (Firebase Cloud Messaging — Android & iOS only)
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+
+  # Crypto
+  crypto: ^3.0.3
+  scrollable_positioned_list: ^0.3.8
+
+  # Voice/video calling (Agora RTC). No official Linux support — voice entry
+  # points are hidden on that platform (see voice_controller.dart). Pinned to
+  # 6.5.4, not the newer 6.6.x line — 6.6.x tightens its ffi constraint to
+  # ^1.1.2, which conflicts with super_clipboard's ffi ^2.0.1 requirement.
+  agora_rtc_engine: 6.5.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  shared_preferences_platform_interface: ^2.4.1
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.3
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.2
+
+# Flutter 3.27 pins path 1.9.0 through flutter_test. flutter_video_caching only
+# uses path APIs already present in 1.9.0, despite declaring ^1.9.1.
+dependency_overrides:
+  # CargoKit 0.8.24 predates Flutter's namespaced Gradle plugin.
+  super_native_extensions:
+    path: packages/super_native_extensions_compat
+  path: 1.9.1
+  # flutter_video_caching only needs HTTP Range support. Its native adapter
+  # raises Android/iOS/macOS deployment floors, so use Dio's portable adapter.
+  native_dio_adapter:
+    path: packages/native_dio_adapter_compat
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/icon/app_icon.png
+  fonts:
+    - family: AppIcons
+      fonts:
+        - asset: assets/legacy/AppIcons.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+
+# App icon generation — source is the official VoceChat logo
+# (from vocechat-web/public/android-chrome-512x512.png).
+# Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground_inset: 26
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#ffffff"
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    background_color: "#ffffff"
+    theme_color: "#ffffff"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"

@@ -1,0 +1,9 @@
+<resources>
+    <string name="background_channel">Background connection</string>
+    <string name="background_messages">Chat messages</string>
+    <string name="background_title">VoceChat is running in the background</string>
+    <string name="background_body">Receiving messages · Turn off in Settings → Notifications</string>
+    <string name="background_call">Call in progress · Keeping audio connected</string>
+    <string name="incoming_calls">Incoming calls</string>
+    <string name="incoming_call_body">Incoming voice call · Tap to answer in VoceChat</string>
+</resources>

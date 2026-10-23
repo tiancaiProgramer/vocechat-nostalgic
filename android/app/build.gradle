@@ -1,0 +1,138 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    // com.google.gms.google-services (declared with apply false in
+    // settings.gradle) is applied conditionally near the bottom of this
+    // file, only when google-services.json is present — see that block for
+    // why.
+}
+
+// Firebase's Google Services plugin requires a physical JSON file. CI can
+// provide that file as a base64 secret without putting project credentials in
+// the repository; a checked-in/local file still works when no secret is set.
+def googleServicesFile = file("google-services.json")
+def googleServicesJsonBase64 = System.getenv("GOOGLE_SERVICES_JSON_BASE64")
+if (googleServicesJsonBase64?.trim()) {
+    try {
+        def normalizedBase64 = googleServicesJsonBase64.replaceAll(/\s+/, "")
+        googleServicesFile.bytes = java.util.Base64.getDecoder().decode(normalizedBase64)
+    } catch (IllegalArgumentException error) {
+        throw new GradleException(
+                "GOOGLE_SERVICES_JSON_BASE64 is not valid base64", error)
+    }
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader("UTF-8") { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
+android {
+    namespace = "com.vocechat.vocechat_client"
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        standalone {
+            dimension = "distribution"
+            buildConfigField "boolean", "DIRECT_DISTRIBUTION_FEATURES", "true"
+        }
+        play {
+            dimension = "distribution"
+            buildConfigField "boolean", "DIRECT_DISTRIBUTION_FEATURES", "false"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.privoce.vocechatclient.legacyui"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        ndk { abiFilters.clear(); abiFilters.add("arm64-v8a") }
+        minSdk = 24
+        targetSdk = 36
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"]
+            keyPassword = keystoreProperties["keyPassword"]
+            storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
+            storePassword = keystoreProperties["storePassword"]
+        }
+    }
+
+    buildTypes {
+        release {
+            // Override Flutter 3.35 build-type defaults for this ARM64 delivery.
+            ndk { abiFilters.clear(); abiFilters.add("arm64-v8a") }
+            // 签名信息在 android/key.properties(不入库);缺失时回退 debug 签名以便本地跑 release
+            signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    // Agora's optional effects are not used by this app. Keep the RTC core,
+    // codecs, screen capture, audio processing and Iris/PiP integration intact.
+    // The same list is consumed by tool/rtc_size/audit.py for APK/AAB checks.
+    // Set ORG_GRADLE_PROJECT_keepAgoraExtensions=true for an untrimmed baseline.
+    if (!providers.gradleProperty("keepAgoraExtensions").orElse("false").get().toBoolean()) {
+        def unusedAgoraLibraries = rootProject.file("agora-excluded-libraries.txt")
+                .readLines("UTF-8")
+                .collect { it.trim() }
+                .findAll { it && !it.startsWith("#") }
+        packagingOptions {
+            jniLibs {
+                excludes += unusedAgoraLibraries.collect { "**/${it}" }
+            }
+        }
+    }
+
+    // Compress native libraries in APKs by default. The installer extracts
+    // compressed .so files, so this trades installed disk space/install work
+    // for a smaller download. Play continues to use AAB delivery.
+    // Set ORG_GRADLE_PROJECT_compressNativeLibraries=false for direct loading.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = providers.gradleProperty("compressNativeLibraries")
+                    .orElse("true").get().toBoolean()
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+// Apply Google Services only when its config file has been injected (e.g. by
+// CI from a secret, or manually for local FCM testing) — see plugins block
+// above for why this can't be a plain `apply plugin`.
+if (googleServicesFile.exists()) {
+    apply plugin: "com.google.gms.google-services"
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+}
+android.testOptions.unitTests.includeAndroidResources = true

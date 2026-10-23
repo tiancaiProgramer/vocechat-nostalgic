@@ -1,0 +1,213 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/storage/account_store.dart';
+import '../../../core/storage/secure_token_store.dart';
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/models/avo_params.dart';
+import '../../../shared/widgets/avo_avatar.dart';
+import '../../auth/application/auth_controller.dart';
+import '../data/user_api.dart';
+
+/// Profile-scoped Avo editor. Changes stay in the preview until Save is
+/// pressed, so dragging energy never produces an HTTP request per frame.
+class AvoSettingsCard extends ConsumerStatefulWidget {
+  const AvoSettingsCard({super.key});
+  @override
+  ConsumerState<AvoSettingsCard> createState() => _AvoSettingsCardState();
+}
+
+class _AvoSettingsCardState extends ConsumerState<AvoSettingsCard> {
+  AvoParams _params = AvoParams.fromName('guest');
+  late final TextEditingController _nameController =
+      TextEditingController(text: _params.name);
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = ref.read(authControllerProvider).valueOrNull;
+    if (auth is AuthStateAuthenticated) {
+      _params = auth.user.avoParams ?? AvoParams.fromName(auth.user.name);
+    }
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final auth = await ref.read(authControllerProvider.future);
+      if (!mounted) return;
+      if (auth is AuthStateAuthenticated) {
+        setState(() {
+          _params = auth.user.avoParams ?? AvoParams.fromName(auth.user.name);
+          _nameController.text = _params.name;
+        });
+      }
+    } catch (_) {
+      // Keep the local preview usable if the account is unavailable.
+    }
+    if (!mounted) return;
+    // Settings is also rendered by logged-out/loading shells and by widget
+    // tests. Do not start Dio's retry chain until an account-scoped token is
+    // actually available; Avo is optional and defaults are sufficient here.
+    final accountId =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    if (accountId == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    try {
+      final tokens =
+          await ref.read(secureTokenStoreProvider(accountId)).readTokens();
+      if (tokens == null || !mounted) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    try {
+      final auth = ref.read(authControllerProvider).valueOrNull;
+      final params = await ref.read(userApiProvider).getAvo(
+          fallbackName:
+              auth is AuthStateAuthenticated ? auth.user.name : _params.name);
+      if (mounted) {
+        _nameController.text = params.name;
+        setState(() => _params = params);
+      }
+    } catch (_) {
+      // The Avo feature is optional and must not make settings unusable.
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(userApiProvider).updateAvo(_params);
+      // Refreshing /me also updates account metadata and directory data through
+      // the existing auth lifecycle without putting transient interaction state
+      // in the message cache.
+      await ref.read(authControllerProvider.notifier).refreshUser();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppL10n.of(context).avoSaved)));
+      }
+    } on AvoUnsupportedException catch (e) {
+      if (mounted) {
+        final l = AppL10n.of(context);
+        final version = e.serverVersion;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(version == null
+                ? l.avoServerUnsupported
+                : l.avoServerVersionUnsupported(version))));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppL10n.of(context).avoSaveFailed(e.toString()))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppL10n.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Avo',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(l.avoDescription),
+          const SizedBox(height: 18),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: ColoredBox(
+                    color: const Color(0xFF101214),
+                    child: AvoAvatar(params: _params, interactive: true),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_loading)
+            const LinearProgressIndicator()
+          else ...[
+            TextField(
+              key: const Key('avo-name'),
+              maxLength: 20,
+              decoration: InputDecoration(labelText: l.avoNameLabel),
+              controller: _nameController,
+              onChanged: (v) => setState(() => _params = AvoParams.fromName(v)),
+            ),
+            DropdownButtonFormField<String>(
+              value: _params.style,
+              decoration: InputDecoration(labelText: l.avoStyleLabel),
+              items: [
+                DropdownMenuItem(value: 'blob', child: Text(l.avoStyleBlob)),
+                DropdownMenuItem(value: 'ring', child: Text(l.avoStyleRing)),
+                DropdownMenuItem(value: 'wave', child: Text(l.avoStyleWave))
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _params = _params.copyWith(style: v));
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            Text(l.avoEnergy((100 * _params.energy).round())),
+            Slider(
+              key: const Key('avo-energy'),
+              min: .1,
+              max: 1,
+              divisions: 18,
+              value: _params.energy,
+              onChanged: (v) =>
+                  setState(() => _params = _params.copyWith(energy: v)),
+            ),
+            Wrap(spacing: 8, children: [
+              for (final hue in AvoParams.allowedHues)
+                ChoiceChip(
+                    label: Text('$hue°'),
+                    selected: hue == _params.hue,
+                    onSelected: (_) =>
+                        setState(() => _params = _params.copyWith(hue: hue)))
+            ]),
+            const SizedBox(height: 12),
+            Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(l.avoSave))),
+          ],
+        ]),
+      ),
+    );
+  }
+}

@@ -1,0 +1,386 @@
+import 'package:dio/dio.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../core/network/dio_client.dart';
+import '../../messages/data/message_cache.dart';
+import '../../../shared/models/avo_params.dart';
+
+part 'user_directory_provider.g.dart';
+
+// ---------------------------------------------------------------------------
+// UserSummary — minimal user info for display in chat bubbles
+// ---------------------------------------------------------------------------
+
+class UserSummary {
+  const UserSummary({
+    required this.uid,
+    required this.name,
+    this.avatarUpdatedAt,
+    this.avoParams,
+  });
+
+  final int uid;
+  final String name;
+  final int? avatarUpdatedAt;
+  final AvoParams? avoParams;
+
+  UserSummary copyWith(
+          {String? name, int? avatarUpdatedAt, AvoParams? avoParams}) =>
+      UserSummary(
+        uid: uid,
+        name: name ?? this.name,
+        avatarUpdatedAt: avatarUpdatedAt ?? this.avatarUpdatedAt,
+        avoParams: avoParams ?? this.avoParams,
+      );
+
+  factory UserSummary.fromJson(Map<String, dynamic> j) => UserSummary(
+        uid: (j['uid'] as num).toInt(),
+        name: j['name'] as String? ?? 'Unknown',
+        avatarUpdatedAt: (j['avatar_updated_at'] as num?)?.toInt(),
+        avoParams: j['avo_params'] is Map
+            ? AvoParams.normalize(
+                Map<String, dynamic>.from(j['avo_params'] as Map))
+            : null,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'uid': uid,
+        'name': name,
+        if (avatarUpdatedAt != null) 'avatar_updated_at': avatarUpdatedAt,
+        if (avoParams != null) 'avo_params': avoParams!.toJson(),
+      };
+}
+
+// ---------------------------------------------------------------------------
+// GroupSummary — minimal group info for display in AppBar
+// ---------------------------------------------------------------------------
+
+class PinnedMessageSummary {
+  const PinnedMessageSummary({
+    required this.mid,
+    required this.content,
+    required this.contentType,
+    required this.createdBy,
+    required this.createdAt,
+  });
+
+  final int mid;
+  final String content;
+  final String contentType;
+  final int createdBy;
+  final int createdAt;
+
+  factory PinnedMessageSummary.fromJson(Map<String, dynamic> j) =>
+      PinnedMessageSummary(
+        mid: (j['mid'] as num).toInt(),
+        content: j['content'] as String? ?? '',
+        contentType: j['content_type'] as String? ?? 'text/plain',
+        createdBy: (j['created_by'] as num?)?.toInt() ?? 0,
+        createdAt: (j['created_at'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'mid': mid,
+        'content': content,
+        'content_type': contentType,
+        'created_by': createdBy,
+        'created_at': createdAt,
+      };
+}
+
+class GroupSummary {
+  const GroupSummary({
+    required this.gid,
+    required this.name,
+    this.avatarUpdatedAt,
+    this.owner = 0,
+    this.description = '',
+    this.isPublic = false,
+    this.members = const [],
+    this.pinnedMessages = const [],
+  });
+
+  final int gid;
+  final String name;
+  final int? avatarUpdatedAt;
+  final int owner;
+  final String description;
+  final bool isPublic;
+  final List<int> members;
+  final List<PinnedMessageSummary> pinnedMessages;
+
+  GroupSummary copyWith({
+    List<PinnedMessageSummary>? pinnedMessages,
+    List<int>? members,
+  }) =>
+      GroupSummary(
+        gid: gid,
+        name: name,
+        avatarUpdatedAt: avatarUpdatedAt,
+        owner: owner,
+        description: description,
+        isPublic: isPublic,
+        members: members ?? this.members,
+        pinnedMessages: pinnedMessages ?? this.pinnedMessages,
+      );
+
+  factory GroupSummary.fromJson(Map<String, dynamic> j) => GroupSummary(
+        gid: (j['gid'] as num).toInt(),
+        name: j['name'] as String? ?? 'Group',
+        avatarUpdatedAt: (j['avatar_updated_at'] as num?)?.toInt(),
+        owner: (j['owner'] as num?)?.toInt() ?? 0,
+        description: j['description'] as String? ?? '',
+        isPublic: j['is_public'] as bool? ?? false,
+        members: (j['members'] as List<dynamic>?)
+                ?.map((e) => (e as num).toInt())
+                .toList() ??
+            const [],
+        pinnedMessages: (j['pinned_messages'] as List<dynamic>?)
+                ?.cast<Map<String, dynamic>>()
+                .map(PinnedMessageSummary.fromJson)
+                .toList() ??
+            const [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'gid': gid,
+        'name': name,
+        if (avatarUpdatedAt != null) 'avatar_updated_at': avatarUpdatedAt,
+        'owner': owner,
+        'description': description,
+        'is_public': isPublic,
+        'members': members,
+        'pinned_messages':
+            pinnedMessages.map((p) => p.toJson()).toList(growable: false),
+      };
+}
+
+// ---------------------------------------------------------------------------
+// userDirectoryProvider — keepAlive map of uid -> UserSummary
+//
+// Cold-start sequence: emit the cached map immediately, then refresh from
+// network in the background. Network errors leave the cached snapshot.
+// ---------------------------------------------------------------------------
+
+@Riverpod(keepAlive: true)
+class UserDirectory extends _$UserDirectory {
+  int _revision = 0;
+
+  @override
+  Future<Map<int, UserSummary>> build() async {
+    final cache = await ref.watch(messageCacheProvider.future);
+
+    final cached = await cache.readUserDirectory();
+    if (cached != null && cached.isNotEmpty) {
+      Future.microtask(() => _refresh(cache));
+      return {
+        for (final j in cached)
+          (j['uid'] as num).toInt(): UserSummary.fromJson(j),
+      };
+    }
+
+    return _fetch(cache);
+  }
+
+  Future<Map<int, UserSummary>> _fetch(MessageCache cache) async {
+    final revision = _revision;
+    final dio = ref.read(dioProvider);
+    try {
+      final resp = await dio.get('/api/user');
+      final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+      // A websocket snapshot/update received during this request is newer.
+      if (revision != _revision) return state.valueOrNull ?? const {};
+      final map = {
+        // With contact verification enabled, REST only returns contacts,
+        // ourselves and admins. It cannot replace the full display directory.
+        ...?state.valueOrNull,
+        for (final u in list) (u['uid'] as num).toInt(): UserSummary.fromJson(u)
+      };
+      // Persist as a flat list of JSON maps for round-trip fidelity.
+      cache.writeUserDirectory(map.values.map((u) => u.toJson()).toList());
+      return map;
+    } on DioException {
+      return state.valueOrNull ?? const {};
+    }
+  }
+
+  Future<void> _refresh(MessageCache cache) async {
+    final fresh = await _fetch(cache);
+    if (fresh.isEmpty) return;
+    state = AsyncData(fresh);
+  }
+
+  /// The websocket snapshot includes non-contact group members as well.
+  Future<void> applySnapshot(List<Map<String, dynamic>> users) async {
+    await future;
+    final updated = {
+      for (final json in users)
+        (json['uid'] as num).toInt(): UserSummary.fromJson(json),
+    };
+    _revision++;
+    state = AsyncData(updated);
+    final cache = await ref.read(messageCacheProvider.future);
+    await cache
+        .writeUserDirectory(updated.values.map((u) => u.toJson()).toList());
+  }
+
+  /// Server user logs contain partial updates; null means unchanged.
+  Future<void> applyLogs(List<Map<String, dynamic>> logs) async {
+    await future;
+    final updated = {...?state.valueOrNull};
+    for (final json in logs) {
+      final uid = (json['uid'] as num?)?.toInt();
+      if (uid == null) continue;
+      if (json['action'] == 'delete') {
+        updated.remove(uid);
+      } else if (json['action'] == 'create' || json['action'] == 'update') {
+        updated[uid] = UserSummary.fromJson({
+          'uid': uid,
+          'name': '#$uid',
+          ...?updated[uid]?.toJson(),
+          for (final entry in json.entries)
+            if (entry.value != null) entry.key: entry.value,
+        });
+      }
+    }
+    _revision++;
+    state = AsyncData(updated);
+    final cache = await ref.read(messageCacheProvider.future);
+    await cache
+        .writeUserDirectory(updated.values.map((u) => u.toJson()).toList());
+  }
+
+  /// Applies a profile push without refetching the whole directory.
+  Future<void> applyUserUpdate(Map<String, dynamic> json) async {
+    await future;
+    final uid = (json['uid'] as num?)?.toInt();
+    if (uid == null) return;
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final previous = current[uid];
+    final next = UserSummary.fromJson({
+      'uid': uid,
+      'name': json['name'] ?? previous?.name ?? '#$uid',
+      'avatar_updated_at':
+          json['avatar_updated_at'] ?? previous?.avatarUpdatedAt,
+      if (json['avo_params'] is Map) 'avo_params': json['avo_params'],
+      if (json['avo_params'] is! Map && previous?.avoParams != null)
+        'avo_params': previous!.avoParams!.toJson(),
+    });
+    final updated = {...current, uid: next};
+    _revision++;
+    state = AsyncData(updated);
+    final cache = await ref.read(messageCacheProvider.future);
+    await cache
+        .writeUserDirectory(updated.values.map((u) => u.toJson()).toList());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// groupDirectoryProvider — keepAlive map of gid -> GroupSummary
+// ---------------------------------------------------------------------------
+
+@Riverpod(keepAlive: true)
+class GroupDirectory extends _$GroupDirectory {
+  int _revision = 0;
+
+  @override
+  Future<Map<int, GroupSummary>> build() async {
+    final cache = await ref.watch(messageCacheProvider.future);
+
+    final cached = await cache.readGroupDirectory();
+    if (cached != null && cached.isNotEmpty) {
+      Future.microtask(() => _refresh(cache));
+      return {
+        for (final j in cached)
+          (j['gid'] as num).toInt(): GroupSummary.fromJson(j),
+      };
+    }
+
+    return _fetch(cache);
+  }
+
+  Future<Map<int, GroupSummary>> _fetch(MessageCache cache) async {
+    final dio = ref.read(dioProvider);
+    final revision = _revision;
+    try {
+      final resp = await dio.get('/api/group');
+      if (revision != _revision) return state.valueOrNull ?? const {};
+      final list = (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+      final map = {
+        for (final g in list)
+          (g['gid'] as num).toInt(): GroupSummary.fromJson(g)
+      };
+      cache.writeGroupDirectory(map.values.map((g) => g.toJson()).toList());
+      return map;
+    } on DioException {
+      return state.valueOrNull ?? const {};
+    }
+  }
+
+  Future<void> _refresh(MessageCache cache) async {
+    final fresh = await _fetch(cache);
+    if (fresh.isEmpty) return;
+    state = AsyncData(fresh);
+  }
+
+  Future<void> refresh() async {
+    final cache = await ref.read(messageCacheProvider.future);
+    await _refresh(cache);
+  }
+
+  Future<void> applyGroupUpdate(Map<String, dynamic> data) async {
+    await future;
+    final gid = (data['gid'] as num?)?.toInt();
+    final current = state.valueOrNull;
+    final group = current?[gid];
+    if (current == null || group == null) return;
+    _revision++;
+    state = AsyncData({
+      ...current,
+      group.gid: GroupSummary.fromJson({
+        ...group.toJson(),
+        for (final entry in data.entries)
+          if (entry.value != null) entry.key: entry.value,
+      }),
+    });
+    await _persistGroups();
+  }
+
+  Future<void> applyPinUpdate(Map<String, dynamic> data) async {
+    await future;
+    final gid = (data['gid'] as num?)?.toInt();
+    final mid = (data['mid'] as num?)?.toInt();
+    final group = state.valueOrNull?[gid];
+    if (group == null || mid == null) return;
+    final pins = group.pinnedMessages.where((p) => p.mid != mid).toList();
+    final message = data['msg'];
+    if (message is Map) {
+      pins.add(
+          PinnedMessageSummary.fromJson(Map<String, dynamic>.from(message)));
+    }
+    applyPinned(group.gid, pins);
+    await _persistGroups();
+  }
+
+  Future<void> _persistGroups() async {
+    final cache = await ref.read(messageCacheProvider.future);
+    final groups = state.valueOrNull;
+    if (groups != null) {
+      await cache
+          .writeGroupDirectory(groups.values.map((g) => g.toJson()).toList());
+    }
+  }
+
+  void applyPinned(int gid, List<PinnedMessageSummary> pinned) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final group = current[gid];
+    if (group == null) return;
+    _revision++;
+    state = AsyncData({
+      ...current,
+      gid: group.copyWith(pinnedMessages: pinned),
+    });
+  }
+}

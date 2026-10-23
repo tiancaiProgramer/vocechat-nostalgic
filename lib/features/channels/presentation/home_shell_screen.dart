@@ -1,0 +1,299 @@
+import '../../../legacy_ui/legacy_chrome.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/network/sse_lifecycle.dart';
+import '../../../core/storage/server_store.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/voce_avatar.dart';
+import '../../messages/application/message_dispatcher.dart';
+import '../../messages/presentation/chat_tool_panels.dart';
+import '../../voice/application/incoming_call_provider.dart';
+import '../../voice/presentation/incoming_call_banner.dart';
+
+/// Width threshold above which the desktop left rail layout is used.
+const double _kWideBreakpoint = 900;
+
+class HomeShellScreen extends ConsumerStatefulWidget {
+  final StatefulNavigationShell navigationShell;
+
+  const HomeShellScreen({super.key, required this.navigationShell});
+
+  @override
+  ConsumerState<HomeShellScreen> createState() => _HomeShellScreenState();
+}
+
+class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
+  // The GoRouter's route-information notifier. Subscribing to it is what makes
+  // this shell rebuild on *intra-branch* navigation (e.g. pushing/popping
+  // /home/chat/:id). StatefulNavigationShell only rebuilds on branch switches,
+  // and GoRouterState.of(context) inside the shell does not re-fire when a
+  // nested page is popped via Navigator.maybePop — so reading the location
+  // without this listener leaves `isChatting` stale and the bottom nav
+  // permanently hidden after returning from a chat. (The original bug.)
+  Listenable? _routerListenable;
+
+  void _onRouterChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    final next = router.routeInformationProvider;
+    if (identical(next, _routerListenable)) return;
+    _routerListenable?.removeListener(_onRouterChanged);
+    _routerListenable = next;
+    _routerListenable?.addListener(_onRouterChanged);
+  }
+
+  @override
+  void dispose() {
+    _routerListenable?.removeListener(_onRouterChanged);
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final navigationShell = widget.navigationShell;
+
+    // Activate the global SSE → ChatController/Conversations dispatcher.
+    ref.watch(messageDispatcherProvider);
+    // Activate SSE lifecycle watchers: token rotation, network up/down,
+    // and app foreground/background. Each is keepAlive and self-managing.
+    ref.watch(sseTokenWatcherProvider);
+    ref.watch(sseConnectivityWatcherProvider);
+    ref.watch(sseLifecycleWatcherProvider);
+    // Polls for incoming DM voice calls app-wide (see incoming_call_provider.dart
+    // for why polling, not a push event, is the primary discovery path).
+    ref.watch(incomingCallProvider);
+
+    // Use MediaQuery instead of LayoutBuilder for the breakpoint: on desktop
+    // (Windows/macOS/Linux) resizing the window must flip the layout reliably,
+    // and a LayoutBuilder placed inside a Scaffold body can lag behind window
+    // metrics during a drag. MediaQuery.sizeOf rebuilds on every metric change.
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = !usesLegacyPhoneLayout && width >= _kWideBreakpoint;
+
+    // Match web behavior: hide the bottom nav while inside a chat conversation
+    // (matches `isChattingPage && "hidden"` in MobileNavs.tsx). Only applies
+    // on narrow layouts — on wide layouts the chat list keeps URL at /home
+    // and renders the conversation in a right pane via internal state, so the
+    // /home/chat/* URL only appears when the user is actually on the detail
+    // view (true mobile / narrow desktop).
+    //
+    // Read the live location from the router (kept fresh by the listener wired
+    // in didChangeDependencies) rather than GoRouterState.of(context), whose
+    // dependency does not re-fire on a nested Navigator pop.
+    final location = GoRouterState.of(context).uri.path;
+    final isChatting = !isWide && RegExp(r'^/home/chat/').hasMatch(location);
+
+    if (isWide) {
+      return Scaffold(
+        backgroundColor: AppTokens.canvas,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  _DesktopLeftRail(
+                    currentIndex: navigationShell.currentIndex,
+                    onDestinationSelected: _onDestinationSelected,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          color: AppTokens.surface,
+                          child: navigationShell,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+              const IncomingCallBanner(),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      drawer: const LegacyServerDrawer(),
+      body: SafeArea(
+        bottom: false,
+        child: Stack(children: [navigationShell, const IncomingCallBanner()]),
+      ),
+      bottomNavigationBar: isChatting
+          ? null
+          : LegacyBottomBar(
+              currentIndex: navigationShell.currentIndex,
+              onTap: _onDestinationSelected),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _DesktopLeftRail — vertical icon nav matching the Figma "Menu" component.
+// Width 72, with a server avatar on top, primary destinations in the middle,
+// and a settings affordance pinned to the bottom.
+// ---------------------------------------------------------------------------
+
+class _DesktopLeftRail extends ConsumerWidget {
+  const _DesktopLeftRail({
+    required this.currentIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppL10n.of(context);
+
+    // Current server → organization logo served at
+    // GET /api/resource/organization/logo (see vocechat-server resource.rs;
+    // the server falls back to a default logo when none was uploaded).
+    final serverState = ref.watch(serverStoreProvider).valueOrNull;
+    final currentServer = serverState?.servers
+        .where((s) => s.id == serverState.currentServerId)
+        .firstOrNull;
+    final logoUrl = currentServer == null
+        ? null
+        : '${currentServer.baseUrl}/api/resource/organization/logo';
+
+    return SizedBox(
+      width: 72,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          // Server header avatar (matches Figma 32px circular avatar at top).
+          Tooltip(
+            message: currentServer?.name ?? '',
+            child: VoceAvatar(
+              name: currentServer?.name ?? '?',
+              imageUrl: logoUrl,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _RailItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            selectedIcon: Icons.chat_bubble_rounded,
+            isSelected: currentIndex == 0,
+            hasBadge: true,
+            onTap: () => onDestinationSelected(0),
+            tooltip: l.navChats,
+          ),
+          const SizedBox(height: 8),
+          _RailItem(
+            icon: Icons.people_outline_rounded,
+            selectedIcon: Icons.people_rounded,
+            isSelected: currentIndex == 1,
+            onTap: () => onDestinationSelected(1),
+            tooltip: l.navContacts,
+          ),
+          const SizedBox(height: 8),
+          _RailItem(
+            icon: Icons.bookmark_outline_rounded,
+            selectedIcon: Icons.bookmark_rounded,
+            isSelected: false,
+            onTap: () => showFavoritesOverlay(context),
+            tooltip: l.navSaved,
+          ),
+          const Spacer(),
+          _RailItem(
+            icon: Icons.settings_outlined,
+            selectedIcon: Icons.settings_rounded,
+            isSelected: currentIndex == 2,
+            onTap: () => onDestinationSelected(2),
+            tooltip: l.navSettings,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _RailItem extends StatelessWidget {
+  const _RailItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.isSelected,
+    required this.onTap,
+    required this.tooltip,
+    this.hasBadge = false,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final String tooltip;
+  final bool hasBadge;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isSelected ? AppTokens.primary400 : Colors.transparent;
+    // Selected background is a fixed cyan in both themes (matches the web's
+    // `bg-primary-400`), so the icon must stay white regardless of the
+    // theme's `onPrimary` (which flips to black in dark mode).
+    final fg = isSelected ? Colors.white : AppTokens.gray500;
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: AppTokens.hover,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          width: 44,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(isSelected ? selectedIcon : icon, size: 24, color: fg),
+              if (hasBadge && !isSelected)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppTokens.error,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTokens.surface, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

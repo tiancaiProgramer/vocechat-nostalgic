@@ -1,0 +1,4 @@
+Upstream super_native_extensions 0.8.24 (MIT; see LICENSE).
+CargoKit Gradle FlutterPlugin detection accepts the new namespaced class,
+and target platforms come from FlutterPluginUtils for Flutter 3.35.
+No Rust / Dart API changes. Release binary signature verification retained.

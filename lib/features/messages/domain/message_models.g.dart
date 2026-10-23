@@ -1,0 +1,32 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'message_models.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$ChatMessageImpl _$$ChatMessageImplFromJson(Map<String, dynamic> json) =>
+    _$ChatMessageImpl(
+      mid: (json['mid'] as num).toInt(),
+      fromUid: (json['from_uid'] as num).toInt(),
+      createdAt: (json['created_at'] as num).toInt(),
+      target: _messageTargetFromJson(json['target'] as Map<String, dynamic>),
+      detail: _messageDetailFromJson(json['detail'] as Map<String, dynamic>),
+      editedContent: json['edited_content'] as String?,
+      editedContentType: json['edited_content_type'] as String?,
+      localOrderAnchor: (json['local_order_anchor'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> _$$ChatMessageImplToJson(_$ChatMessageImpl instance) =>
+    <String, dynamic>{
+      'mid': instance.mid,
+      'from_uid': instance.fromUid,
+      'created_at': instance.createdAt,
+      'target': _messageTargetToJson(instance.target),
+      'detail': _messageDetailToJson(instance.detail),
+      'edited_content': instance.editedContent,
+      'edited_content_type': instance.editedContentType,
+      if (instance.localOrderAnchor case final value?)
+        'local_order_anchor': value,
+    };
