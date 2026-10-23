@@ -464,5 +464,45 @@
   "settingsAccountAndStorage": "账号、存储与数据",
   "accountSwitcherServersTitle": "服务器",
   "accountSwitcherAdd": "添加",
-  "chatStatusSyncing": "状态同步中…"
+  "chatStatusSyncing": "状态同步中…",
+  "stickerFavorites": "收藏表情",
+  "stickerImport": "导入图片 / GIF",
+  "stickerManage": "管理",
+  "stickerDone": "完成",
+  "stickerAddFromChat": "添加到表情",
+  "stickerEmpty": "还没有收藏的表情",
+  "stickerLocalHint": "从手机导入，或长按聊天图片添加。接入表情服务后可跨手机同步。",
+  "stickerAdded": "已添加到表情",
+  "stickerAlreadySaved": "这张表情已经收藏过了",
+  "stickerImportSummary": "已添加 {added} 张，重复 {duplicates} 张，失败 {failed} 张",
+  "stickerTooLarge": "表情图片不能超过 10 MB",
+  "stickerUnsupported": "请选择有效的 PNG、JPG、GIF 或 WebP 图片",
+  "stickerMissing": "表情文件已丢失或损坏，请删除后重新导入",
+  "stickerOperationFailed": "表情操作失败，请重试",
+  "stickerDownloadFailed": "图片下载失败，请检查连接后重试",
+  "stickerRemoveTitle": "删除这张表情？",
+  "stickerRemoveBody": "从个人表情中删除；接入同步后也会从服务器删除，不影响聊天记录。",
+  "stickerSend": "发送表情",
+  "stickerSaving": "正在添加表情…",
+  "@stickerImportSummary": {
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "duplicates": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "chatCameraGestureHint": "点按拍照 · 长按录像",
+  "chatCaptureFailed": "拍摄失败，请检查相机后重试",
+  "chatMediaReadFailed": "无法读取所选图片或视频，请重新选择",
+  "stickerSyncLocal": "本机收藏 · 未接入表情同步服务",
+  "stickerSyncing": "正在同步表情",
+  "stickerSynced": "已与服务器同步",
+  "stickerSyncPending": "已保存在本机 · 待同步，点云朵重试",
+  "stickerSyncUnavailable": "同步暂不可用 · 本机收藏仍可使用"
 }

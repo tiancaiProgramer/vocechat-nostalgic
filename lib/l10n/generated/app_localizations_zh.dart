@@ -1380,4 +1380,87 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get chatStatusSyncing => '状态同步中…';
+
+  @override
+  String get stickerFavorites => '收藏表情';
+
+  @override
+  String get stickerImport => '导入图片 / GIF';
+
+  @override
+  String get stickerManage => '管理';
+
+  @override
+  String get stickerDone => '完成';
+
+  @override
+  String get stickerAddFromChat => '添加到表情';
+
+  @override
+  String get stickerEmpty => '还没有收藏的表情';
+
+  @override
+  String get stickerLocalHint => '从手机导入，或长按聊天图片添加。接入表情服务后可跨手机同步。';
+
+  @override
+  String get stickerAdded => '已添加到表情';
+
+  @override
+  String get stickerAlreadySaved => '这张表情已经收藏过了';
+
+  @override
+  String stickerImportSummary(int added, int duplicates, int failed) {
+    return '已添加 $added 张，重复 $duplicates 张，失败 $failed 张';
+  }
+
+  @override
+  String get stickerTooLarge => '表情图片不能超过 10 MB';
+
+  @override
+  String get stickerUnsupported => '请选择有效的 PNG、JPG、GIF 或 WebP 图片';
+
+  @override
+  String get stickerMissing => '表情文件已丢失或损坏，请删除后重新导入';
+
+  @override
+  String get stickerOperationFailed => '表情操作失败，请重试';
+
+  @override
+  String get stickerDownloadFailed => '图片下载失败，请检查连接后重试';
+
+  @override
+  String get stickerRemoveTitle => '删除这张表情？';
+
+  @override
+  String get stickerRemoveBody => '从个人表情中删除；接入同步后也会从服务器删除，不影响聊天记录。';
+
+  @override
+  String get stickerSend => '发送表情';
+
+  @override
+  String get stickerSaving => '正在添加表情…';
+
+  @override
+  String get chatCameraGestureHint => '点按拍照 · 长按录像';
+
+  @override
+  String get chatCaptureFailed => '拍摄失败，请检查相机后重试';
+
+  @override
+  String get chatMediaReadFailed => '无法读取所选图片或视频，请重新选择';
+
+  @override
+  String get stickerSyncLocal => '本机收藏 · 未接入表情同步服务';
+
+  @override
+  String get stickerSyncing => '正在同步表情';
+
+  @override
+  String get stickerSynced => '已与服务器同步';
+
+  @override
+  String get stickerSyncPending => '已保存在本机 · 待同步，点云朵重试';
+
+  @override
+  String get stickerSyncUnavailable => '同步暂不可用 · 本机收藏仍可使用';
 }

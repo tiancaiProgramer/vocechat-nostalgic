@@ -1,0 +1,32 @@
+services:
+  vocechat-stickers:
+    build: .
+    image: vocechat-stickers:1
+    container_name: vocechat-stickers
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      VC_UPSTREAM: "http://vocechat-1:3000"
+      VC_PUBLIC_URL: "${VC_PUBLIC_URL:?请在.env内填写VC的完整外部地址}"
+      MAX_ITEMS: "512"
+      QUOTA_MIB: "256"
+    volumes:
+      - ./data:/data
+    networks:
+      - vocechat-sticker-net
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 192m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  vocechat-sticker-net:
+    external: true

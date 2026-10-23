@@ -128,10 +128,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             child: Stack(
               children: [
                 asyncConvs.when(
-                  // Cold-start (no cached snapshot yet) — show capsule
-                  // centered while we await the first network paint.
-                  loading: () =>
-                      Center(child: LoadingCapsule(label: l.chatListLoading)),
+                  // Keep the initial list area clear; status is shown below.
+                  loading: () => const SizedBox.expand(),
                   error: (e, _) => Center(
                     child: Text(safeText(l.errorPrefix(e.toString()))),
                   ),
@@ -190,7 +188,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       onRefresh: () async {
                         // Cap how long the pull-down spinner stays visible:
                         // the refresh itself (and the bottom-right "updating"
-                        // capsule) keep running past this, but the spinner
+                        // status) keep running past this, but the spinner
                         // hiding early avoids it looking stuck on a slow
                         // network. `.timeout` still listens to the original
                         // future, so a late error/completion is discarded
@@ -246,14 +244,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     );
                   },
                 ),
-                // Background-refresh capsule: visible only when we already
-                // have cached data on screen and a network refresh is in
-                // flight. Hidden during the initial cold-start spinner.
-                if (asyncConvs.hasValue)
-                  LoadingCapsuleOverlay(
-                    visible: refreshing,
-                    label: l.chatListUpdating,
-                  ),
+                LoadingCapsuleOverlay(
+                  visible: asyncConvs.isLoading || refreshing,
+                  label: asyncConvs.hasValue
+                      ? l.chatListUpdating
+                      : l.chatListLoading,
+                ),
               ],
             ),
           ),

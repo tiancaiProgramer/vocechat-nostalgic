@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:camera/camera.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -19,10 +18,15 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:record/record.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import 'package:video_player/video_player.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/server_store.dart';
+import '../../../core/storage/account_store.dart';
+import '../../../core/storage/secure_token_store.dart';
+import '../application/custom_stickers_provider.dart';
+import '../data/custom_sticker_store.dart';
+import '../data/sticker_message_source.dart';
+import 'sticker_feedback.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/safe_text.dart';
 import '../../../features/auth/application/auth_controller.dart';
@@ -95,12 +99,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Mobile (Android/iOS) gets the gallery-grid attachment sheet; every
   /// other platform (including web, where `Platform.*` throws) keeps the
   /// plain file_picker dialog.
-  bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  bool get _isMobile =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
-  /// Explicit markdown mode toggled via the composer's Markdown icon —
-  /// forces the next send's content-type instead of relying on heuristics.
-  /// Resets to off after each send (web parity: per-message, not sticky).
-  bool _markdownMode = false;
   int? _highlightMid;
   Timer? _highlightTimer;
 
@@ -309,7 +312,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _textCtrl.text.trim();
     final l = AppL10n.of(context);
     final replyMid = _replyToMid;
-    final markdown = _markdownMode;
     // Snapshot + clear the staging area; uploads fire below (web parity:
     // staged files only upload on send, then the stage resets).
     final staged = List<_StagedFile>.from(_staged);
@@ -322,7 +324,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _replyTarget = null;
       _staged.clear();
       _pendingMentions.clear();
-      _markdownMode = false;
     });
     try {
       final notifier = ref.read(chatControllerProvider(_target).notifier);
@@ -333,10 +334,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             replyMid,
             text,
             mentions: mentions,
-            markdown: markdown,
           );
         } else {
-          await notifier.sendText(text, mentions: mentions, markdown: markdown);
+          await notifier.sendText(text, mentions: mentions);
         }
       }
       // 2) Then each staged image (each becomes its own optimistic row).
@@ -466,24 +466,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// Mobile entry point for the "+" button: a bottom sheet offering a camera
-  /// shortcut, an in-app photo-gallery grid (multi-select), and a "Files"
-  /// action that falls back to [_pickAndStageFile]'s native picker.
+  bool _showingAttachmentSheet = false;
+
+  /// Image/video gallery and the shared system-camera entry point.
   Future<void> _showAttachmentSheet() async {
-    final result = await showModalBottomSheet<_AttachmentPickResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const _AttachmentSheet(),
-    );
-    if (result == null || !mounted) return;
-    switch (result) {
-      case _AttachmentImagesResult(images: final imgs):
-        for (final img in imgs) {
-          _stageFile(img.bytes, img.filename);
-        }
-      case _AttachmentOpenFilePicker():
-        await _pickAndStageFile();
+    if (_showingAttachmentSheet) return;
+    _showingAttachmentSheet = true;
+    final target = _target;
+    final accountId =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    try {
+      final result = await showModalBottomSheet<_AttachmentPickResult>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => const _AttachmentSheet(),
+      );
+      if (result == null ||
+          !mounted ||
+          target != _target ||
+          accountId !=
+              ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+        return;
+      }
+      switch (result) {
+        case _AttachmentImagesResult(images: final media):
+          for (final file in media) {
+            _stageFile(file.bytes, file.filename);
+          }
+        case _AttachmentOpenFilePicker():
+          await _pickAndStageFile();
+      }
+    } finally {
+      _showingAttachmentSheet = false;
     }
   }
 
@@ -502,38 +517,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await notifier.sendVoiceMessage(
         bytes: bytes,
         filename: 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(safeText(l.chatSendFailed(_friendlyError(e, l)))),
-          ),
-        );
-      }
-    }
-  }
-
-  /// Open the full-screen camera capture screen; on confirm, upload the
-  /// recorded clip through the same `sendImage` pipeline as staged files.
-  /// Mobile-only (gated in `_SendBox`) — the `camera` plugin's desktop
-  /// support is not solid enough for this repo's Windows-first workflow.
-  Future<void> _recordVideoMessage() async {
-    final l = AppL10n.of(context);
-    final bytes =
-        await Navigator.of(context, rootNavigator: true).push<Uint8List>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => const _VideoCaptureScreen(),
-      ),
-    );
-    if (bytes == null || bytes.isEmpty || !mounted) return;
-    try {
-      final notifier = ref.read(chatControllerProvider(_target).notifier);
-      await notifier.sendImage(
-        bytes: bytes,
-        filename: 'video_${DateTime.now().millisecondsSinceEpoch}.mp4',
-        contentType: 'video/mp4',
       );
     } catch (e) {
       if (mounted) {
@@ -898,12 +881,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_pickingEmoji) return;
     _pickingEmoji = true;
     final target = _target;
+    final accountId =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
     final selection = _textCtrl.selection;
     _closeMentionOverlay();
     _composerFocusNode.unfocus();
     try {
-      final emoji = await showComposerEmojiPicker(context);
-      if (!mounted || target != _target || emoji == null) return;
+      final picked =
+          await showComposerEmojiPicker(context, accountId: accountId);
+      if (!mounted ||
+          target != _target ||
+          picked == null ||
+          accountId !=
+              ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+        return;
+      }
+      if (picked is StickerEmojiSelection) {
+        if (accountId == null) return;
+        final store =
+            await ref.read(customStickerStoreProvider(accountId).future);
+        final bytes = await store.read(picked.sticker);
+        if (!mounted ||
+            target != _target ||
+            accountId !=
+                ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+          return;
+        }
+        // Send independently: text, staged attachments and the reply draft stay intact.
+        await ref.read(chatControllerProvider(target).notifier).sendImage(
+            bytes: bytes,
+            filename: picked.sticker.filename,
+            contentType: picked.sticker.contentType);
+        return;
+      }
+      final emoji = (picked as TextEmojiSelection).emoji;
       final text = _textCtrl.text;
       final start = selection.isValid
           ? selection.start.clamp(0, text.length)
@@ -916,6 +927,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         selection: TextSelection.collapsed(offset: start + emoji.length),
       );
       _composerFocusNode.requestFocus();
+    } catch (error) {
+      if (mounted &&
+          accountId ==
+              ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(stickerErrorLabel(AppL10n.of(context), error))));
+      }
     } finally {
       _pickingEmoji = false;
     }
@@ -1216,6 +1234,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             )
                           else
                             _SendBox(
+                              key: const ValueKey('chat-composer'),
                               controller: _textCtrl,
                               focusNode: _composerFocusNode,
                               onEmojiTap: _pickEmoji,
@@ -1245,13 +1264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               onCancelReply: _cancelReply,
                               textFieldKey: _sendBoxKey,
                               onChanged: isChannel ? _onComposerChanged : null,
-                              markdownActive: _markdownMode,
-                              onToggleMarkdown: () => setState(
-                                () => _markdownMode = !_markdownMode,
-                              ),
                               onRecordVoice: _recordVoiceMessage,
-                              onRecordVideo: _recordVideoMessage,
-                              isMobile: _isMobile,
                             ),
                         ],
                       ),
@@ -2403,6 +2416,9 @@ class _MessageRowState extends ConsumerState<MessageRow> {
           l.chatToolPin,
           icon: Icons.push_pin_outlined,
         ),
+      if (stickerPathForMessage(msg) != null)
+        VoceContextMenuItem('sticker', l.stickerAddFromChat,
+            icon: Icons.add_reaction_outlined),
       VoceContextMenuItem('fav', l.chatToolSaved, icon: Icons.bookmark_outline),
       if (isMine)
         VoceContextMenuItem(
@@ -2442,8 +2458,98 @@ class _MessageRowState extends ConsumerState<MessageRow> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? l.chatToolPinAdded : l.chatToolPinFail)),
       );
+    } else if (selection == 'sticker') {
+      await _saveAsSticker();
     } else if (selection == 'fav') {
       await _favorite();
+    }
+  }
+
+  bool _savingSticker = false;
+
+  Future<void> _saveAsSticker() async {
+    if (_savingSticker) return;
+    final path = stickerPathForMessage(widget.message);
+    final accounts = ref.read(accountStoreProvider).valueOrNull;
+    final accountId = accounts?.currentAccountId;
+    final account =
+        accounts?.accounts.where((a) => a.accountId == accountId).firstOrNull;
+    final server = ref
+        .read(serverStoreProvider)
+        .valueOrNull
+        ?.servers
+        .where((s) => s.id == account?.serverId)
+        .firstOrNull;
+    if (path == null || accountId == null || server == null) return;
+    _savingSticker = true;
+    final l = AppL10n.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final notice = messenger.showSnackBar(SnackBar(
+        content: Text(l.stickerSaving), duration: const Duration(seconds: 30)));
+    final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 15)));
+    bool isCurrent() =>
+        mounted &&
+        accountId ==
+            ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    try {
+      var tokens =
+          await ref.read(secureTokenStoreProvider(accountId)).readTokens();
+      if (!isCurrent()) return;
+      if (tokens != null &&
+          tokens.expiresAt
+              .isBefore(DateTime.now().add(const Duration(seconds: 30)))) {
+        await ref.read(authControllerProvider.notifier).renewIfPossible();
+        if (!isCurrent()) return;
+        tokens =
+            await ref.read(secureTokenStoreProvider(accountId)).readTokens();
+      }
+      if (tokens == null) throw const StickerException(StickerFailure.download);
+      Uint8List bytes;
+      try {
+        bytes = await downloadStickerOriginal(
+            dio: dio,
+            baseUrl: server.baseUrl,
+            accessToken: tokens.accessToken,
+            resourcePath: path);
+      } on DioException catch (error) {
+        if (error.response?.statusCode != 401 || !isCurrent()) rethrow;
+        final renewed =
+            await ref.read(authControllerProvider.notifier).renewIfPossible();
+        if (!isCurrent()) return;
+        tokens =
+            await ref.read(secureTokenStoreProvider(accountId)).readTokens();
+        if (!renewed || tokens == null) {
+          throw const StickerException(StickerFailure.download);
+        }
+        bytes = await downloadStickerOriginal(
+            dio: dio,
+            baseUrl: server.baseUrl,
+            accessToken: tokens.accessToken,
+            resourcePath: path);
+      }
+      if (!isCurrent()) return;
+      final result =
+          await ref.read(customStickersProvider(accountId).notifier).add(bytes);
+      notice.close();
+      if (isCurrent()) {
+        messenger.showSnackBar(SnackBar(
+            content:
+                Text(result.added ? l.stickerAdded : l.stickerAlreadySaved)));
+      }
+    } catch (error) {
+      notice.close();
+      if (isCurrent()) {
+        messenger.showSnackBar(SnackBar(
+            content: Text(stickerErrorLabel(
+                l,
+                error is DioException
+                    ? const StickerException(StickerFailure.download)
+                    : error))));
+      }
+    } finally {
+      notice.close();
+      dio.close(force: true);
+      _savingSticker = false;
     }
   }
 
@@ -2636,7 +2742,7 @@ class _ReplyIcon extends StatelessWidget {
 // _SendBox — matches the web client `Send` component:
 //   • outer `bg-gray-200` rounded pill, 8px radius
 //   • emoji picker pinned bottom-left (absolute), input padded behind it
-//   • right-side toolbar: markdown, attach (+), send (zoom-in when text)
+//   • media/files, voice recording, and send actions
 //   • icons are flat gray — no IconButton ripple boxes, no primary fill
 // ---------------------------------------------------------------------------
 
@@ -2743,6 +2849,7 @@ class _SelectionBar extends StatelessWidget {
 
 class _SendBox extends StatelessWidget {
   const _SendBox({
+    super.key,
     required this.controller,
     required this.focusNode,
     required this.onEmojiTap,
@@ -2760,11 +2867,7 @@ class _SendBox extends StatelessWidget {
     this.onCancelReply,
     this.textFieldKey,
     this.onChanged,
-    this.markdownActive = false,
-    this.onToggleMarkdown,
     this.onRecordVoice,
-    this.onRecordVideo,
-    this.isMobile = false,
   });
 
   final TextEditingController controller;
@@ -2805,20 +2908,8 @@ class _SendBox extends StatelessWidget {
   /// mentions (none currently) needn't wire it.
   final void Function(String text)? onChanged;
 
-  /// Whether the next send will use `text/markdown` instead of `text/plain`.
-  final bool markdownActive;
-  final VoidCallback? onToggleMarkdown;
-
-  /// Open the voice-recording sheet / video-capture screen. Both are only
-  /// shown when the composer has no text/staged files (mirrors web's
-  /// mic/send mutual-exclusion pattern).
+  /// Open the voice-recording sheet.
   final VoidCallback? onRecordVoice;
-  final VoidCallback? onRecordVideo;
-
-  /// True on Android/iOS — gates the video-message icon, whose `camera`
-  /// plugin desktop support isn't solid enough for this repo's Windows-first
-  /// workflow (see [_ChatScreenState._isMobile]).
-  final bool isMobile;
 
   /// Ctrl/Cmd+V handler: send a clipboard image if present, otherwise fall
   /// back to inserting clipboard text at the caret (the default paste, which
@@ -2968,40 +3059,6 @@ class _SendBox extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 28,
-                  height: 32,
-                  child: PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    tooltip: l.actionMore,
-                    icon: Icon(
-                      Icons.more_horiz,
-                      size: 20,
-                      color: markdownActive
-                          ? AppTokens.primary400
-                          : AppTokens.gray500,
-                    ),
-                    onSelected: (value) {
-                      if (value == 'markdown')
-                        onToggleMarkdown?.call();
-                      else
-                        onRecordVideo?.call();
-                    },
-                    itemBuilder: (_) => [
-                      CheckedPopupMenuItem(
-                        value: 'markdown',
-                        checked: markdownActive,
-                        child: Text(l.chatMarkdown),
-                      ),
-                      if (isMobile && onRecordVideo != null)
-                        PopupMenuItem(
-                          value: 'video',
-                          child: Text(l.chatVideoMessage),
-                        ),
-                    ],
-                  ),
-                ),
                 if (!canSend && onRecordVoice != null) ...[
                   const SizedBox(width: 8),
                   _SendIcon(
@@ -3046,7 +3103,7 @@ class _SendBox extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 // _AttachmentSheet — mobile "+" bottom sheet. A camera tile plus an in-app
-// photo-gallery grid (multi-select, via `photo_manager`), and a "Files"
+// photo/video gallery grid (multi-select, via `photo_manager`), and a "Files"
 // header action that hands off to the existing file_picker flow. Pops with
 // an [_AttachmentPickResult], or null on dismiss.
 // ---------------------------------------------------------------------------
@@ -3105,7 +3162,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
         return;
       }
       final paths = await PhotoManager.getAssetPathList(
-        type: RequestType.image,
+        type: RequestType.common,
         onlyAll: true,
       );
       if (paths.isEmpty) {
@@ -3130,23 +3187,54 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
   }
 
   void _openFiles() {
-    Navigator.of(context).pop(const _AttachmentOpenFilePicker());
+    if (!_sending) Navigator.of(context).pop(const _AttachmentOpenFilePicker());
   }
 
-  Future<void> _openCamera() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.camera);
-    if (picked == null || !mounted) return;
-    final bytes = await picked.readAsBytes();
-    if (!mounted) return;
-    Navigator.of(context).pop(
-      _AttachmentImagesResult([
-        _StagedImage(bytes: bytes, filename: picked.name),
-      ]),
-    );
+  Future<void> _openCamera({required bool video}) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    final l = AppL10n.of(context);
+    try {
+      final picker = ImagePicker();
+      final picked = video
+          ? await picker.pickVideo(source: ImageSource.camera)
+          : await picker.pickImage(source: ImageSource.camera);
+      if (picked == null || !mounted) return;
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      if (bytes.isEmpty) throw const FormatException('Empty camera result');
+      Navigator.of(context).pop(_AttachmentImagesResult([
+        _StagedImage(
+            bytes: bytes,
+            filename: MessageApi.resolveFilename(picked.name, bytes: bytes)),
+      ]));
+    } catch (error) {
+      if (mounted) {
+        final denied = error is PlatformException &&
+            (error.code.toLowerCase().contains('denied') ||
+                error.code.toLowerCase().contains('restricted'));
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+              content: Text(denied
+                  ? l.chatRecordingPermissionDenied
+                  : l.chatCaptureFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
+
+  Widget _cameraTile(AppL10n l) => _CameraTile(
+        label: l.chatAttachCamera,
+        hint: l.chatCameraGestureHint,
+        busy: _sending,
+        onTap: _sending ? null : () => _openCamera(video: false),
+        onLongPress: _sending ? null : () => _openCamera(video: true),
+      );
 
   void _toggleSelect(AssetEntity asset) {
+    if (_sending) return;
     setState(() {
       if (!_selectedIds.remove(asset.id)) _selectedIds.add(asset.id);
     });
@@ -3159,8 +3247,12 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
       final selected = _assets.where((a) => _selectedIds.contains(a.id));
       final images = <_StagedImage>[];
       for (final asset in selected) {
-        final bytes = await asset.originBytes;
-        if (bytes == null || bytes.isEmpty) continue;
+        final bytes = asset.type == AssetType.video
+            ? await (await asset.originFile)?.readAsBytes()
+            : await asset.originBytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw const FileSystemException('Selected media is unavailable');
+        }
         images.add(
           _StagedImage(
             bytes: bytes,
@@ -3169,6 +3261,11 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
         );
       }
       if (mounted) Navigator.of(context).pop(_AttachmentImagesResult(images));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -3209,45 +3306,43 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: _permissionDenied
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            l.chatPhotoPermissionDenied,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppTokens.gray500),
-                          ),
+                child: _permissionDenied || _loading
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                            SizedBox(
+                                width: 112, height: 112, child: _cameraTile(l)),
+                            Expanded(
+                                child: Center(
+                                    child: _loading
+                                        ? const CircularProgressIndicator()
+                                        : Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Text(
+                                                l.chatPhotoPermissionDenied,
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                    color:
+                                                        AppTokens.gray500))))),
+                          ])
+                    : GridView.builder(
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 4,
+                          mainAxisSpacing: 4,
                         ),
-                      )
-                    : _loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : GridView.builder(
-                            padding: EdgeInsets.zero,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 4,
-                              mainAxisSpacing: 4,
-                              childAspectRatio: 1,
-                            ),
-                            itemCount: _assets.length + 1,
-                            itemBuilder: (ctx, index) {
-                              if (index == 0) {
-                                return _CameraTile(
-                                  label: l.chatAttachCamera,
-                                  onTap: _openCamera,
-                                );
-                              }
-                              final asset = _assets[index - 1];
-                              final selected = _selectedIds.contains(asset.id);
-                              return _PhotoTile(
-                                asset: asset,
-                                selected: selected,
-                                onTap: () => _toggleSelect(asset),
-                              );
-                            },
-                          ),
+                        itemCount: _assets.length + 1,
+                        itemBuilder: (ctx, index) {
+                          if (index == 0) return _cameraTile(l);
+                          final asset = _assets[index - 1];
+                          return _PhotoTile(
+                              asset: asset,
+                              selected: _selectedIds.contains(asset.id),
+                              onTap: () => _toggleSelect(asset));
+                        },
+                      ),
               ),
               if (selectedCount > 0) ...[
                 const SizedBox(height: 12),
@@ -3268,29 +3363,48 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
 }
 
 class _CameraTile extends StatelessWidget {
-  const _CameraTile({required this.label, required this.onTap});
+  const _CameraTile(
+      {required this.label,
+      required this.hint,
+      required this.onTap,
+      required this.onLongPress,
+      required this.busy});
   final String label;
-  final VoidCallback onTap;
+  final String hint;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTokens.gray100,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.camera_alt_outlined, color: AppTokens.gray600),
+    return Semantics(
+      button: true,
+      label: '$label. $hint',
+      child: InkWell(
+        key: const ValueKey('attachment-system-camera'),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          decoration: BoxDecoration(
+              color: AppTokens.gray100, borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(Icons.camera_alt_outlined, color: AppTokens.gray600),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: AppTokens.gray600),
-            ),
-          ],
+            Text(label,
+                style: TextStyle(fontSize: 12, color: AppTokens.gray600)),
+            const SizedBox(height: 2),
+            Text(hint,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(
+                    fontSize: 10, height: 1.2, color: AppTokens.gray500)),
+          ]),
         ),
       ),
     );
@@ -3323,6 +3437,24 @@ class _PhotoTile extends StatelessWidget {
               fit: BoxFit.cover,
             ),
           ),
+          if (asset.type == AssetType.video)
+            Positioned(
+                left: 4,
+                bottom: 4,
+                child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.videocam, color: Colors.white, size: 14),
+                      const SizedBox(width: 3),
+                      Text(
+                          '${asset.duration ~/ 60}:${(asset.duration % 60).toString().padLeft(2, '0')}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11)),
+                    ]))),
           Positioned(
             top: 4,
             right: 4,
@@ -3534,278 +3666,6 @@ class _VoiceRecordSheetState extends State<_VoiceRecordSheet> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _VideoCaptureScreen — full-screen camera preview with record/stop and a
-// confirm/discard step. Pops with the recorded bytes on confirm, or null on
-// discard/back. Mobile-only (gated at the call site in `_SendBox`).
-// ---------------------------------------------------------------------------
-
-class _VideoCaptureScreen extends StatefulWidget {
-  const _VideoCaptureScreen();
-
-  @override
-  State<_VideoCaptureScreen> createState() => _VideoCaptureScreenState();
-}
-
-class _VideoCaptureScreenState extends State<_VideoCaptureScreen> {
-  CameraController? _controller;
-  List<CameraDescription> _cameras = const [];
-  int _cameraIndex = 0;
-  bool _recording = false;
-  bool _initFailed = false;
-  bool _permissionDenied = false;
-  String? _recordedPath;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
-        if (mounted) setState(() => _initFailed = true);
-        return;
-      }
-      await _openCamera(_cameraIndex);
-    } catch (_) {
-      if (mounted) setState(() => _initFailed = true);
-    }
-  }
-
-  Future<void> _openCamera(int index) async {
-    final previous = _controller;
-    _controller = CameraController(
-      _cameras[index],
-      ResolutionPreset.medium,
-      enableAudio: true,
-    );
-    try {
-      await _controller!.initialize();
-      await previous?.dispose();
-      if (!mounted) return;
-      setState(() => _cameraIndex = index);
-    } on CameraException catch (e) {
-      if (e.code == 'CameraAccessDenied' ||
-          e.code == 'CameraAccessDeniedWithoutPrompt') {
-        if (mounted) setState(() => _permissionDenied = true);
-      } else if (mounted) {
-        setState(() => _initFailed = true);
-      }
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2) return;
-    final next = (_cameraIndex + 1) % _cameras.length;
-    await _openCamera(next);
-  }
-
-  Future<void> _toggleRecord() async {
-    final ctrl = _controller;
-    if (ctrl == null || !ctrl.value.isInitialized) return;
-    if (_recording) {
-      final file = await ctrl.stopVideoRecording();
-      if (mounted) {
-        setState(() {
-          _recording = false;
-          _recordedPath = file.path;
-        });
-      }
-    } else {
-      await ctrl.startVideoRecording();
-      if (mounted) setState(() => _recording = true);
-    }
-  }
-
-  Future<void> _confirm() async {
-    final path = _recordedPath;
-    if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    if (mounted) Navigator.of(context).pop(bytes);
-  }
-
-  void _discard() {
-    setState(() => _recordedPath = null);
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppL10n.of(context);
-    final recordedPath = _recordedPath;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: recordedPath != null
-            ? _RecordedVideoPreview(
-                path: recordedPath,
-                onDiscard: _discard,
-                onConfirm: _confirm,
-              )
-            : _permissionDenied
-                ? Center(
-                    child: Text(
-                      l.chatRecordingPermissionDenied,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  )
-                : _initFailed || _controller?.value.isInitialized != true
-                    ? const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      )
-                    : Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CameraPreview(_controller!),
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: IconButton(
-                              icon:
-                                  const Icon(Icons.close, color: Colors.white),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                          ),
-                          if (_cameras.length > 1)
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.cameraswitch_outlined,
-                                  color: Colors.white,
-                                ),
-                                onPressed: _recording ? null : _switchCamera,
-                              ),
-                            ),
-                          Positioned(
-                            bottom: 32,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: GestureDetector(
-                                onTap: _toggleRecord,
-                                child: Container(
-                                  width: 72,
-                                  height: 72,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 3),
-                                  ),
-                                  padding: const EdgeInsets.all(6),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      shape: _recording
-                                          ? BoxShape.rectangle
-                                          : BoxShape.circle,
-                                      borderRadius: _recording
-                                          ? BorderRadius.circular(6)
-                                          : null,
-                                      color: Colors.redAccent,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-      ),
-    );
-  }
-}
-
-class _RecordedVideoPreview extends StatefulWidget {
-  const _RecordedVideoPreview({
-    required this.path,
-    required this.onDiscard,
-    required this.onConfirm,
-  });
-
-  final String path;
-  final VoidCallback onDiscard;
-  final VoidCallback onConfirm;
-
-  @override
-  State<_RecordedVideoPreview> createState() => _RecordedVideoPreviewState();
-}
-
-class _RecordedVideoPreviewState extends State<_RecordedVideoPreview> {
-  VideoPlayerController? _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = VideoPlayerController.file(File(widget.path))
-      ..initialize().then((_) {
-        if (mounted) setState(() {});
-        _ctrl?.play();
-        _ctrl?.setLooping(true);
-      });
-  }
-
-  @override
-  void dispose() {
-    _ctrl?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppL10n.of(context);
-    final ctrl = _ctrl;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Center(
-          child: ctrl != null && ctrl.value.isInitialized
-              ? AspectRatio(
-                  aspectRatio: ctrl.value.aspectRatio,
-                  child: VideoPlayer(ctrl),
-                )
-              : const CircularProgressIndicator(color: Colors.white),
-        ),
-        Positioned(
-          bottom: 32,
-          left: 24,
-          right: 24,
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white),
-                  ),
-                  onPressed: widget.onDiscard,
-                  child: Text(l.chatVoiceRecordingCancel),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: widget.onConfirm,
-                  child: Text(l.actionSend),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -4174,17 +4034,14 @@ class _SendIcon extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.onTap,
-    this.color,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
-  final Color? color;
-
   @override
   Widget build(BuildContext context) {
-    final iconWidget = Icon(icon, size: 22, color: color ?? AppTokens.gray800);
+    final iconWidget = Icon(icon, size: 22, color: AppTokens.gray800);
     return Tooltip(
       message: tooltip,
       child: InkResponse(

@@ -21,7 +21,7 @@ import '../recovery/app_recovery.dart';
 import '../../l10n/generated/app_localizations.dart';
 
 // ---------------------------------------------------------------------------
-// Splash (thin placeholder until auth guard is wired)
+// Brief local-storage handoff; no logo or artificial loading animation.
 // ---------------------------------------------------------------------------
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -76,28 +76,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           title: l.appLoadingSlowTitle,
           body: l.appLoadingSlowBody);
     }
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child:
-                  Icon(Icons.chat_bubble_rounded, size: 42, color: cs.primary),
-            ),
-            const SizedBox(height: 24),
-            CircularProgressIndicator(color: cs.primary),
-          ],
-        ),
-      ),
-    );
+    return const Scaffold();
   }
 }
 
@@ -256,7 +235,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) => NoTransitionPage<void>(
+          key: state.pageKey,
+          child: const SplashScreen(),
+        ),
       ),
       GoRoute(
         path: '/server-picker',
@@ -273,8 +255,12 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
             magicToken: state.extra is String ? state.extra as String : null),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) =>
-            HomeShellScreen(navigationShell: navigationShell),
+        // Android already animates the Activity into view. Restoring the local
+        // session must not start a second Material page zoom over that window.
+        pageBuilder: (context, state, navigationShell) => NoTransitionPage<void>(
+          key: state.pageKey,
+          child: HomeShellScreen(navigationShell: navigationShell),
+        ),
         branches: [
           StatefulShellBranch(
             routes: [

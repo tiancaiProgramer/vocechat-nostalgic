@@ -10,8 +10,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <!-- photo_manager gallery grid in the chat attachment sheet. Both
-         IMAGES and VIDEO are required together on API 33+ even for
-         images-only queries; VISUAL_USER_SELECTED backs the Android 14
+         IMAGES and VIDEO cover the shared photo/video grid on API 33+; VISUAL_USER_SELECTED backs the Android 14
          "select photos" limited-access flow. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>

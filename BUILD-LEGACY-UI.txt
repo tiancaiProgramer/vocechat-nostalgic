@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33+3106
+版本：0.3.33+3112
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,7 +18,7 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3106。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3112。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
@@ -60,3 +60,28 @@ HTTP事件流禁用压缩缓冲，支持分片UTF-8、多行data及event字段�
 服务端状态快照不含当前用户，本人显示值由当前实时连接是否收到有效事件决定；
 连接中断/重连时撤销本人的在线值，其他用户继续使用服务端快照和增量事件。
 客户端修复不会自行恢复已失效的旧设备会话，需要在应用内重新登录一次。
+
+3107：个人自定义表情收藏。表情面板增加收藏区，支持导入PNG/JPG/GIF/WebP、点击发送及管理删除。
+聊天普通图片/GIF长按菜单增加“添加到表情”，与原消息收藏分开；阅后即焚图片不提供该入口。
+每个账号在本机独立保存原图，重复图片去重；清理媒体缓存不删除收藏，单张上限10MB。
+发送使用标准图片消息，保留未发送文字及附件草稿；GIF聊天气泡使用原图以保留动画。
+本机测试：264项通过、3项环境用例跳过；另在隔离服务器双账号验证GIF发送、接收收藏及再次发送。
+
+3108：移除输入框Markdown开关和独立视频消息入口，保留已有Markdown消息显示及编辑。
+图片选择面板的相机格子合并拍照/录像：点按调用系统拍照，长按调用系统录像，均使用image_picker。
+删除应用内录像相机和独立预览页面；拍摄结果加入输入框待发送区，由用户确认发送。
+相册同时显示图片和视频，视频标注时长；相册权限未开时仍显示相机入口。
+取消拍摄保持草稿；权限/文件读取失败恢复操作并提示；防重复调用与跨账户/会话回填。
+手机系统解析核对：拍照、录像分别为com.android.camera的OneShotImageCapture及OneShotVideoCapture。
+
+3109：收藏表情支持同域名/stickers/独立服务同步，VC身份验证、原文件保存、离线待办和跨设备删除；保留本机缓存。部署参考tool/sticker_server/README.md。
+
+3110：移除启动占位聊天图标和转圈；读取本地账号和令牌后直接进入原界面，服务器身份及会话验证改为后台执行。离线保留本地会话，明确认证拒绝时回到登录；退出/切换账号取消旧启动请求并忽略迟到结果，同账号启动/SSE主动续期共享任务。
+收藏表情仅在管理模式显示导入；一次选择多张图片/GIF，原文件与去重保留。移除可见同步状态文字与空库同步说明，成功显示云朵勾，未连接显示云朵内感叹号，待同步/同步中分别用上传/云内进度表示。
+飞牛部署已由用户验证容器正常运行，NPM容器访问/healthz及外网/stickers/healthz均返回服务JSON；真实账号鉴权及跨手机同步尚未由用户反馈验证结果。NPM使用Custom Locations并将两条指令放在该Location的小齿轮，详见tool/sticker_server/README.md。
+表情面板记住最后使用的默认/收藏分类，关闭面板或重启应用后按偏好打开；每次打开仍默认退出管理模式。
+
+3111：会话、联系人列表首次加载改为右下角灰色小字，移除中央胶囊和转圈；后台刷新沿用相同小字样式。
+3112：本地恢复页和首页使用无额外过渡的根页面，避免系统打开动画后再执行一次首页缩放。聊天页面原有导航过渡保留。
+Windows 构建已使用 Flutter 3.35.7 / Dart 3.9.2、JDK17、SDK36、NDK27.0.12077973、Gradle8.14.3完成。建议构建目录使用无中文路径；启用桌面平台构建时需满足 Windows 符号链接权限要求。
+本次路由、冷启动及登录恢复27项测试通过。Release证书与原正式版一致，包名、版本、非debug属性、ARM64、ZIP完整性和16KiB ZIP对齐均已核验。3112已保留数据覆盖安装并录屏确认重复启动缩放消除。

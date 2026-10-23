@@ -35,6 +35,85 @@ const _renewed = {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('saved session enters before a stalled server identity probe', () async {
+    final identity = Completer<bool>();
+    var requests = 0;
+    final fixture = await _Fixture.create((request) async {
+      requests++;
+      return _json(_me);
+    }, identity: identity.future);
+
+    final local =
+        await fixture.restoreLocally().timeout(const Duration(seconds: 1));
+    expect((local as AuthStateAuthenticated).user.name, 'Saved name');
+    expect(requests, 0);
+    identity.complete(false);
+    await fixture.controller.startupValidation;
+    expect(
+        (fixture.container.read(authControllerProvider).requireValue
+                as AuthStateAuthenticated)
+            .user
+            .name,
+        'Current name');
+  });
+
+  test('saved session enters before /me responds, then handles rejection',
+      () async {
+    final response = Completer<ResponseBody>();
+    final started = Completer<void>();
+    final fixture = await _Fixture.create((request) async {
+      if (request.path == '/api/user/me') {
+        if (!started.isCompleted) started.complete();
+        return response.future;
+      }
+      return _json({}, status: 401);
+    });
+    expect(await fixture.restoreLocally().timeout(const Duration(seconds: 1)),
+        isA<AuthStateAuthenticated>());
+    await started.future;
+    expect(fixture.container.read(authControllerProvider).isLoading, isFalse);
+    response.complete(_json({}, status: 401));
+    await fixture.controller.startupValidation;
+    expect(fixture.container.read(authControllerProvider).requireValue,
+        isA<AuthStateUnauthenticated>());
+    expect(fixture.tokens.tokens, isNull);
+  });
+
+  test('late startup response cannot revive a logged-out account', () async {
+    final response = Completer<ResponseBody>();
+    final started = Completer<void>();
+    final fixture = await _Fixture.create((request) async {
+      if (request.path == '/api/user/me') {
+        started.complete();
+        return response.future;
+      }
+      return _json({});
+    });
+    await fixture.restoreLocally();
+    final validation = fixture.controller.startupValidation;
+    await started.future;
+    await fixture.controller.logout();
+    response.complete(_json(_me));
+    await validation;
+    expect(fixture.container.read(authControllerProvider).requireValue,
+        isA<AuthStateUnauthenticated>());
+    expect(fixture.tokens.tokens, isNull);
+    expect(
+        fixture.container
+            .read(accountStoreProvider)
+            .requireValue
+            .currentAccountId,
+        isNull);
+  });
+
+  test('missing local tokens routes to login without waiting for network',
+      () async {
+    final fixture = await _Fixture.create((request) async => _json(_me));
+    fixture.tokens.tokens = null;
+    expect(await fixture.restoreLocally(), isA<AuthStateUnauthenticated>());
+    await fixture.controller.startupValidation;
+  });
+
   test('temporarily locked Keychain preserves account through cold start',
       () async {
     final fixture = await _Fixture.create((request) async => _json(_me));
@@ -48,6 +127,53 @@ void main() {
     await fixture.controller.bootstrap();
     expect(fixture.container.read(authControllerProvider).requireValue,
         isA<AuthStateAuthenticated>());
+  });
+
+  test('startup and SSE share a proactive token renewal', () async {
+    final started = Completer<void>();
+    final response = Completer<ResponseBody>();
+    var renewals = 0;
+    final fixture = await _Fixture.create((request) async {
+      if (request.path == '/api/token/renew') {
+        renewals++;
+        if (!started.isCompleted) started.complete();
+        return response.future;
+      }
+      return _json(_me);
+    }, expired: true);
+    await fixture.restoreLocally();
+    await started.future;
+    final sseRenewal = fixture.controller.renewIfPossible();
+    // Allow the second caller to read local tokens while renewal is held.
+    await Future<void>.delayed(Duration.zero);
+    response.complete(_json(_renewed));
+    expect(await sseRenewal, isTrue);
+    await fixture.controller.startupValidation;
+    expect(renewals, 1);
+    expect(fixture.tokens.tokens?.accessToken, 'new-access');
+  });
+
+  test('a late 401 never renews with a newly selected account', () async {
+    final started = Completer<void>();
+    final response = Completer<ResponseBody>();
+    final alternate = _MemoryTokenStore(expired: false);
+    var requests = 0;
+    final fixture = await _Fixture.create((request) async {
+      requests++;
+      started.complete();
+      return response.future;
+    }, alternateTokens: alternate);
+    final request = AuthApi(fixture.dio).me();
+    final rejected = expectLater(request, throwsA(isA<DioException>()));
+    await started.future;
+    await fixture.container
+        .read(accountStoreProvider.notifier)
+        .selectAccount('server::8');
+    response.complete(_json({}, status: 401));
+    await rejected;
+    expect(requests, 1);
+    expect(alternate.readCount, 0);
+    expect(alternate.clearCount, 0);
   });
 
   test('Keychain read failure rejects requests promptly without sending them',
@@ -287,6 +413,8 @@ class _Fixture {
   static Future<_Fixture> create(
     Future<ResponseBody> Function(RequestOptions) respond, {
     bool expired = false,
+    Future<bool>? identity,
+    _MemoryTokenStore? alternateTokens,
   }) async {
     SharedPreferences.setMockInitialValues({
       'voce_accounts': [jsonEncode(_account.toJson())],
@@ -298,7 +426,10 @@ class _Fixture {
     final container = ProviderContainer(overrides: [
       secureTokenStoreProvider(_account.accountId)
           .overrideWith((ref) => tokens),
-      authControllerProvider.overrideWith(_TestAuthController.new),
+      if (alternateTokens != null)
+        secureTokenStoreProvider('server::8')
+            .overrideWith((ref) => alternateTokens),
+      authControllerProvider.overrideWith(() => _TestAuthController(identity)),
     ]);
     addTearDown(container.dispose);
     container.listen(accountStoreProvider, (_, __) {});
@@ -311,17 +442,26 @@ class _Fixture {
     return _Fixture(container, tokens, dio);
   }
 
-  Future<AuthState> restore() {
+  Future<AuthState> restoreLocally() {
     container.listen(authControllerProvider, (_, __) {});
     return container.read(authControllerProvider.future);
+  }
+
+  Future<AuthState> restore() async {
+    await restoreLocally();
+    await controller.startupValidation;
+    return container.read(authControllerProvider).requireValue;
   }
 }
 
 class _TestAuthController extends AuthController {
+  _TestAuthController(this.identity);
+  final Future<bool>? identity;
   // Identity replacement is an independent startup concern. Exercise the
   // real auth/bootstrap + Dio stack without contacting the public org API.
   @override
-  Future<bool> checkServerIdentity([String? baseUrl]) async => false;
+  Future<bool> checkServerIdentity([String? baseUrl]) async =>
+      identity == null ? false : await identity!;
 }
 
 class _MemoryTokenStore extends SecureTokenStore {
@@ -336,9 +476,11 @@ class _MemoryTokenStore extends SecureTokenStore {
   TokenData? tokens;
   Object? readError;
   int clearCount = 0;
+  int readCount = 0;
 
   @override
   Future<TokenData?> readTokens() async {
+    readCount++;
     if (readError != null) throw readError!;
     return tokens;
   }

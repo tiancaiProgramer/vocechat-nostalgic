@@ -436,17 +436,22 @@ class _ImageBubbleState extends ConsumerState<_ImageBubble> {
 
     final headers =
         _resolvedHeaders ?? _refererOnlyHeaders(widget.urls.baseUrl);
+    // Server thumbnails are static. GIF messages need original bytes to animate.
+    final animated = widget.meta.contentType.toLowerCase() == 'image/gif';
+    final imageUrl = animated ? widget.urls.origin : widget.urls.thumbnail;
+    final imageCacheKey =
+        animated ? widget.urls.originCacheKey : widget.urls.thumbnailCacheKey;
     final image = widget.cacheMedia
         ? CachedNetworkImage(
-            imageUrl: widget.urls.thumbnail,
-            cacheKey: widget.urls.thumbnailCacheKey,
+            imageUrl: imageUrl,
+            cacheKey: imageCacheKey,
             httpHeaders: headers,
             fit: BoxFit.cover,
             placeholder: (context, _) => _buildPlaceholder(),
             errorWidget: (context, url, error) => _buildError(),
           )
         : Image.network(
-            widget.urls.thumbnail,
+            imageUrl,
             headers: headers,
             fit: BoxFit.cover,
             loadingBuilder: (context, child, progress) =>

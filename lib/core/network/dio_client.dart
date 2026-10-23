@@ -152,6 +152,7 @@ const String _kRenewRequest = '__voce_renew_request__';
 /// A freshly renewed token must only be tried once. A second 401 should be
 /// returned to the caller instead of starting an unbounded renewal loop.
 const String _kRetriedAfterRefresh = '__voce_retried_after_refresh__';
+const String _kRequestAccount = '__voce_request_account__';
 
 /// Marker key set in `RequestOptions.extra` on requests where a 401 means a
 /// definitive rejection (e.g. wrong credentials on `/api/token/login`)
@@ -238,6 +239,18 @@ class _AuthInterceptor extends Interceptor {
 
     final accountId =
         _ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    options.extra.putIfAbsent(_kRequestAccount, () => accountId);
+    bool accountChanged() =>
+        options.extra[_kRequestAccount] !=
+        _ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    void rejectChangedAccount() => handler.reject(DioException(
+        requestOptions: options,
+        type: DioExceptionType.cancel,
+        error: 'Account changed'));
+    if (accountChanged()) {
+      rejectChangedAccount();
+      return;
+    }
     final skipAuthHeader = options.headers.containsKey('X-API-Key') &&
         options.headers['X-API-Key'] == null;
     if (accountId != null && !skipAuthHeader) {
@@ -251,6 +264,10 @@ class _AuthInterceptor extends Interceptor {
           error: e,
           stackTrace: stackTrace,
         ));
+        return;
+      }
+      if (accountChanged()) {
+        rejectChangedAccount();
         return;
       }
       if (tokens != null) {
@@ -306,6 +323,14 @@ class _AuthInterceptor extends Interceptor {
     );
 
     if (statusCode == 401) {
+      // A delayed background response belongs to the account which sent it.
+      // Never renew or retry it with a newly selected account's credentials.
+      if (err.requestOptions.cancelToken?.isCancelled == true ||
+          err.requestOptions.extra[_kRequestAccount] !=
+              _ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+        handler.next(err);
+        return;
+      }
       // CRITICAL: the renew call below is itself a Dio request and goes
       // through this same interceptor. When the refresh token is also dead,
       // `/api/token/renew` returns 401 (server: RenewTokenApiResponse maps

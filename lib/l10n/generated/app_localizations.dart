@@ -2688,6 +2688,168 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'Syncing status…'**
   String get chatStatusSyncing;
+
+  /// No description provided for @stickerFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved stickers'**
+  String get stickerFavorites;
+
+  /// No description provided for @stickerImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import image / GIF'**
+  String get stickerImport;
+
+  /// No description provided for @stickerManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get stickerManage;
+
+  /// No description provided for @stickerDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get stickerDone;
+
+  /// No description provided for @stickerAddFromChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to stickers'**
+  String get stickerAddFromChat;
+
+  /// No description provided for @stickerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved stickers yet'**
+  String get stickerEmpty;
+
+  /// No description provided for @stickerLocalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Import an image or long press a chat image. Connect the sticker service to sync across devices.'**
+  String get stickerLocalHint;
+
+  /// No description provided for @stickerAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to stickers'**
+  String get stickerAdded;
+
+  /// No description provided for @stickerAlreadySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'This sticker is already saved'**
+  String get stickerAlreadySaved;
+
+  /// No description provided for @stickerImportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {added}, duplicates {duplicates}, failed {failed}'**
+  String stickerImportSummary(int added, int duplicates, int failed);
+
+  /// No description provided for @stickerTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker images must be 10 MB or smaller'**
+  String get stickerTooLarge;
+
+  /// No description provided for @stickerUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a valid PNG, JPG, GIF or WebP image'**
+  String get stickerUnsupported;
+
+  /// No description provided for @stickerMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker file is missing or damaged. Remove it and import it again.'**
+  String get stickerMissing;
+
+  /// No description provided for @stickerOperationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker operation failed. Please try again.'**
+  String get stickerOperationFailed;
+
+  /// No description provided for @stickerDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Image download failed. Check your connection and try again.'**
+  String get stickerDownloadFailed;
+
+  /// No description provided for @stickerRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this sticker?'**
+  String get stickerRemoveTitle;
+
+  /// No description provided for @stickerRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from your stickers and, when connected, the server. Chat messages are kept.'**
+  String get stickerRemoveBody;
+
+  /// No description provided for @stickerSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send sticker'**
+  String get stickerSend;
+
+  /// No description provided for @stickerSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding sticker…'**
+  String get stickerSaving;
+
+  /// No description provided for @chatCameraGestureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap for photo · Hold for video'**
+  String get chatCameraGestureHint;
+
+  /// No description provided for @chatCaptureFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture failed. Check the camera and try again.'**
+  String get chatCaptureFailed;
+
+  /// No description provided for @chatMediaReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the selected photos or videos. Please select them again.'**
+  String get chatMediaReadFailed;
+
+  /// No description provided for @stickerSyncLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local stickers · sync service not configured'**
+  String get stickerSyncLocal;
+
+  /// No description provided for @stickerSyncing.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing stickers'**
+  String get stickerSyncing;
+
+  /// No description provided for @stickerSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced with server'**
+  String get stickerSynced;
+
+  /// No description provided for @stickerSyncPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved locally · tap the cloud to retry syncing'**
+  String get stickerSyncPending;
+
+  /// No description provided for @stickerSyncUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync unavailable · local stickers still work'**
+  String get stickerSyncUnavailable;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

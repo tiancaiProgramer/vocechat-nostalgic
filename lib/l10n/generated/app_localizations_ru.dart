@@ -1443,4 +1443,96 @@ class AppL10nRu extends AppL10n {
 
   @override
   String get chatStatusSyncing => 'Syncing status…';
+
+  @override
+  String get stickerFavorites => 'Saved stickers';
+
+  @override
+  String get stickerImport => 'Import image / GIF';
+
+  @override
+  String get stickerManage => 'Manage';
+
+  @override
+  String get stickerDone => 'Done';
+
+  @override
+  String get stickerAddFromChat => 'Add to stickers';
+
+  @override
+  String get stickerEmpty => 'No saved stickers yet';
+
+  @override
+  String get stickerLocalHint =>
+      'Import an image or long press a chat image. Connect the sticker service to sync across devices.';
+
+  @override
+  String get stickerAdded => 'Added to stickers';
+
+  @override
+  String get stickerAlreadySaved => 'This sticker is already saved';
+
+  @override
+  String stickerImportSummary(int added, int duplicates, int failed) {
+    return 'Added $added, duplicates $duplicates, failed $failed';
+  }
+
+  @override
+  String get stickerTooLarge => 'Sticker images must be 10 MB or smaller';
+
+  @override
+  String get stickerUnsupported => 'Choose a valid PNG, JPG, GIF or WebP image';
+
+  @override
+  String get stickerMissing =>
+      'Sticker file is missing or damaged. Remove it and import it again.';
+
+  @override
+  String get stickerOperationFailed =>
+      'Sticker operation failed. Please try again.';
+
+  @override
+  String get stickerDownloadFailed =>
+      'Image download failed. Check your connection and try again.';
+
+  @override
+  String get stickerRemoveTitle => 'Remove this sticker?';
+
+  @override
+  String get stickerRemoveBody =>
+      'Remove from your stickers and, when connected, the server. Chat messages are kept.';
+
+  @override
+  String get stickerSend => 'Send sticker';
+
+  @override
+  String get stickerSaving => 'Adding sticker…';
+
+  @override
+  String get chatCameraGestureHint => 'Tap for photo · Hold for video';
+
+  @override
+  String get chatCaptureFailed =>
+      'Capture failed. Check the camera and try again.';
+
+  @override
+  String get chatMediaReadFailed =>
+      'Could not read the selected photos or videos. Please select them again.';
+
+  @override
+  String get stickerSyncLocal => 'Local stickers · sync service not configured';
+
+  @override
+  String get stickerSyncing => 'Syncing stickers';
+
+  @override
+  String get stickerSynced => 'Synced with server';
+
+  @override
+  String get stickerSyncPending =>
+      'Saved locally · tap the cloud to retry syncing';
+
+  @override
+  String get stickerSyncUnavailable =>
+      'Sync unavailable · local stickers still work';
 }

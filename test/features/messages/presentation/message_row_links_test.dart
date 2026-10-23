@@ -222,6 +222,30 @@ void main() {
     expect(copied, _url);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
+  for (final ephemeral in [false, true]) {
+    testWidgets(
+        'image menu ${ephemeral ? 'excludes expiring images' : 'offers sticker collection separately from message saving'}',
+        (tester) async {
+      await pumpRow(
+          tester,
+          _message(MessageDetail.normal(
+              contentType: 'vocechat/file',
+              content: 'images/reaction.gif',
+              properties: const {
+                'content_type': 'image/gif',
+                'name': 'reaction.gif',
+                'size': 100
+              },
+              expiresIn: ephemeral ? 600 : null)));
+      await tester.longPress(find.text('reaction.gif'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add to stickers'),
+          ephemeral ? findsNothing : findsOneWidget);
+      expect(find.text('Saved'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final contentType in ['text/plain', 'text/markdown']) {
     testWidgets('$contentType link tap selects the row in selection mode',
         (tester) async {

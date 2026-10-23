@@ -19,22 +19,35 @@ class LoadingCapsule extends StatelessWidget {
   final String label;
   final bool compact;
 
-  /// When true, render with very low opacity and smaller chrome so the capsule
-  /// stays out of the way during long background refreshes.
+  /// When true, show only small, muted text for a corner status indicator.
   final bool subtle;
 
   @override
   Widget build(BuildContext context) {
-    final pad = (compact || subtle)
+    if (subtle) {
+      final foreground = Theme.of(context).colorScheme.onSurfaceVariant;
+      return IgnorePointer(
+        child: Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 10,
+            color: foreground.withValues(alpha: .65),
+            height: 1.4,
+          ),
+        ),
+      );
+    }
+
+    final pad = compact
         ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
         : const EdgeInsets.symmetric(horizontal: 14, vertical: 8);
-    final spinnerSize = subtle ? 9.0 : (compact ? 12.0 : 14.0);
-    final fontSize = subtle ? 10.0 : (compact ? 11.0 : 12.0);
+    final spinnerSize = compact ? 12.0 : 14.0;
+    final fontSize = compact ? 11.0 : 12.0;
 
-    // ~25% gray-800 background + ~70% text — clearly visible if you look,
-    // easy to ignore if you don't.
-    final bg = subtle ? const Color(0x331F2937) : const Color(0xCC1F2937);
-    final fg = subtle ? const Color(0xB3FFFFFF) : Colors.white;
+    const bg = Color(0xCC1F2937);
+    const fg = Colors.white;
 
     return IgnorePointer(
       ignoring: true,
@@ -43,15 +56,13 @@ class LoadingCapsule extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: subtle
-              ? null
-              : const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -60,11 +71,11 @@ class LoadingCapsule extends StatelessWidget {
               width: spinnerSize,
               height: spinnerSize,
               child: CircularProgressIndicator(
-                strokeWidth: subtle ? 1.5 : 2,
+                strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(fg),
               ),
             ),
-            SizedBox(width: subtle ? 6 : 8),
+            const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
@@ -82,8 +93,7 @@ class LoadingCapsule extends StatelessWidget {
 }
 
 /// Convenience overlay positioning the capsule discreetly at the bottom-right
-/// of its parent. The capsule renders in [LoadingCapsule.subtle] mode so a
-/// long background refresh doesn't hijack the user's attention.
+/// of its parent. Uses small, muted text without a pill or spinner.
 ///
 /// Failsafe: if [visible] stays true past [maxVisibleDuration] the capsule
 /// fades out anyway. A background refresh that genuinely runs that long has

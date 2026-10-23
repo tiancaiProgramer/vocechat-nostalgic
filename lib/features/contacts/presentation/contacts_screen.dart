@@ -57,8 +57,15 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
               ),
               Expanded(
                 child: asyncContacts.when(
-                  loading: () =>
-                      Center(child: LoadingCapsule(label: l.contactsLoading)),
+                  loading: () => Stack(
+                    children: [
+                      const SizedBox.expand(),
+                      LoadingCapsuleOverlay(
+                        visible: true,
+                        label: l.contactsLoading,
+                      ),
+                    ],
+                  ),
                   error: (e, _) => Center(
                     child: Text(safeText(l.errorPrefix(e.toString()))),
                   ),

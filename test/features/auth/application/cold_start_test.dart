@@ -127,6 +127,7 @@ void main() {
       // Deliberately do not preload server/account providers: this is startup.
       expect(await restarted.read(authControllerProvider.future),
           isA<AuthStateAuthenticated>());
+      await restarted.read(authControllerProvider.notifier).startupValidation;
       final remembered = await restarted
           .read(secureTokenStoreProvider('server'))
           .readRememberedCredential();

@@ -49,14 +49,15 @@ void main() {
             home: SplashScreen(),
           ));
         }));
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byIcon(Icons.chat_bubble_rounded), findsNothing);
     await tester.pump(const Duration(seconds: 15));
     expect(find.byType(AppRecoveryPage), findsOneWidget);
     await tester
         .tap(find.byWidgetPredicate((widget) => widget is FilledButton));
     await tester.pump();
     expect(scopes, 2);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

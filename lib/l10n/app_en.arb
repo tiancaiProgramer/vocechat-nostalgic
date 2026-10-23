@@ -707,5 +707,45 @@
   "settingsAccountAndStorage": "Account, Storage & Data",
   "accountSwitcherServersTitle": "Servers",
   "accountSwitcherAdd": "Add",
-  "chatStatusSyncing": "Syncing status…"
+  "chatStatusSyncing": "Syncing status…",
+  "stickerFavorites": "Saved stickers",
+  "stickerImport": "Import image / GIF",
+  "stickerManage": "Manage",
+  "stickerDone": "Done",
+  "stickerAddFromChat": "Add to stickers",
+  "stickerEmpty": "No saved stickers yet",
+  "stickerLocalHint": "Import an image or long press a chat image. Connect the sticker service to sync across devices.",
+  "stickerAdded": "Added to stickers",
+  "stickerAlreadySaved": "This sticker is already saved",
+  "stickerImportSummary": "Added {added}, duplicates {duplicates}, failed {failed}",
+  "stickerTooLarge": "Sticker images must be 10 MB or smaller",
+  "stickerUnsupported": "Choose a valid PNG, JPG, GIF or WebP image",
+  "stickerMissing": "Sticker file is missing or damaged. Remove it and import it again.",
+  "stickerOperationFailed": "Sticker operation failed. Please try again.",
+  "stickerDownloadFailed": "Image download failed. Check your connection and try again.",
+  "stickerRemoveTitle": "Remove this sticker?",
+  "stickerRemoveBody": "Remove from your stickers and, when connected, the server. Chat messages are kept.",
+  "stickerSend": "Send sticker",
+  "stickerSaving": "Adding sticker…",
+  "@stickerImportSummary": {
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "duplicates": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "chatCameraGestureHint": "Tap for photo · Hold for video",
+  "chatCaptureFailed": "Capture failed. Check the camera and try again.",
+  "chatMediaReadFailed": "Could not read the selected photos or videos. Please select them again.",
+  "stickerSyncLocal": "Local stickers · sync service not configured",
+  "stickerSyncing": "Syncing stickers",
+  "stickerSynced": "Synced with server",
+  "stickerSyncPending": "Saved locally · tap the cloud to retry syncing",
+  "stickerSyncUnavailable": "Sync unavailable · local stickers still work"
 }

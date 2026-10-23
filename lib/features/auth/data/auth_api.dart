@@ -109,10 +109,12 @@ class AuthApi {
         resp.data as Map<String, dynamic>);
   }
 
-  Future<RenewResponse> renew(String refreshToken) async {
+  Future<RenewResponse> renew(String refreshToken,
+      {CancelToken? cancelToken}) async {
     final resp = await _dio.post(
       '/api/token/renew',
       data: {'refresh_token': refreshToken},
+      cancelToken: cancelToken,
       // A rejected refresh token must reach the caller directly. Trying to
       // refresh this request itself repeats renewal with the same credential.
       options: Options(
@@ -138,8 +140,8 @@ class AuthApi {
     await _dio.delete('/api/user/delete');
   }
 
-  Future<VoceUser> me() async {
-    final resp = await _dio.get('/api/user/me');
+  Future<VoceUser> me({CancelToken? cancelToken}) async {
+    final resp = await _dio.get('/api/user/me', cancelToken: cancelToken);
     return VoceUser.fromJson(resp.data as Map<String, dynamic>);
   }
 }
