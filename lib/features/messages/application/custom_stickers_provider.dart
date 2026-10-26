@@ -162,4 +162,16 @@ class CustomStickers extends FamilyAsyncNotifier<List<CustomSticker>, String> {
         StickerSyncStatus.pending;
     _schedule();
   }
+
+  Future<void> reorder(List<String> ids) async {
+    if (!state.hasValue) {
+      await future;
+    }
+    if (ref.read(accountStoreProvider).valueOrNull?.currentAccountId != arg) {
+      return;
+    }
+    final store = ref.read(customStickerStoreProvider(arg)).requireValue;
+    await store.reorder(ids);
+    state = AsyncData(await store.list());
+  }
 }

@@ -17,6 +17,8 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/messages/presentation/chat_screen.dart';
 import '../../features/search/presentation/contact_search_screen.dart';
 import '../../features/search/presentation/message_search_screen.dart';
+import '../../features/sharing/application/incoming_share_provider.dart';
+import '../../features/sharing/presentation/share_target_screen.dart';
 import '../storage/server_store.dart';
 import '../storage/account_store.dart';
 import '../recovery/app_recovery.dart';
@@ -118,6 +120,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   ref.listen(authControllerProvider, (_, __) => refreshNotifier.refresh());
   ref.listen(serverStoreProvider, (_, __) => refreshNotifier.refresh());
+  ref.listen(
+      pendingIncomingShareProvider, (_, __) => refreshNotifier.refresh());
+  ref.listen(
+      selectedIncomingShareProvider, (_, __) => refreshNotifier.refresh());
   ref.listen(fcmPendingChatTargetProvider, (_, next) {
     // Clearing an acknowledged tap must not re-parse the old route before
     // Router has published the newly matched location back to its provider.
@@ -182,6 +188,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // Authenticated → block auth screens, send splash to home
       const authScreens = ['/login', '/register', '/splash'];
       if (authScreens.contains(location)) return '/home';
+
+      final shared = ref.read(pendingIncomingShareProvider);
+      final selectedShare = ref.read(selectedIncomingShareProvider);
+      if (shared != null &&
+          selectedShare == null &&
+          location != '/home/share') {
+        return '/home/share';
+      }
+      if (location == '/home/share' && shared == null) {
+        return selectedShare == null
+            ? '/home'
+            : '/home/chat/${selectedShare.chatId}';
+      }
 
       // Keep redirect free of synchronous provider writes. Consume only once
       // the target is matched, so a second evaluation cannot undo the tap.
@@ -259,7 +278,8 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
       StatefulShellRoute.indexedStack(
         // Android already animates the Activity into view. Restoring the local
         // session must not start a second Material page zoom over that window.
-        pageBuilder: (context, state, navigationShell) => NoTransitionPage<void>(
+        pageBuilder: (context, state, navigationShell) =>
+            NoTransitionPage<void>(
           key: state.pageKey,
           child: HomeShellScreen(navigationShell: navigationShell),
         ),
@@ -271,6 +291,9 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
                 builder: (context, state) => const ChatListScreen(),
                 routes: [
                   GoRoute(
+                      path: 'share',
+                      builder: (_, __) => const ShareTargetScreen()),
+                  GoRoute(
                     path: 'people',
                     builder: (context, state) => const ContactSearchScreen(),
                   ),
@@ -280,11 +303,14 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
                   ),
                   GoRoute(
                     path: 'chat/:id',
-                    builder: (context, state) =>
-                        ChatScreen(id: state.pathParameters['id']!,
-                          initialMid: int.tryParse(state.uri.queryParameters['mid'] ?? ''),
-                          initialName: state.extra is Map && (state.extra as Map)['chatName'] is String
-                              ? (state.extra as Map)['chatName'] as String : null),
+                    builder: (context, state) => ChatScreen(
+                        id: state.pathParameters['id']!,
+                        initialMid: int.tryParse(
+                            state.uri.queryParameters['mid'] ?? ''),
+                        initialName: state.extra is Map &&
+                                (state.extra as Map)['chatName'] is String
+                            ? (state.extra as Map)['chatName'] as String
+                            : null),
                     routes: [
                       GoRoute(
                         path: 'settings',

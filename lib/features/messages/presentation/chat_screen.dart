@@ -40,6 +40,8 @@ import '../../../shared/widgets/voce_dialog.dart';
 import '../../profile/presentation/user_profile_card.dart';
 import '../../voice/presentation/voice_entry_button.dart';
 import '../application/chat_controller.dart';
+import '../application/chat_drafts_provider.dart';
+import '../../sharing/application/incoming_share_provider.dart';
 import '../application/chat_layout_provider.dart';
 import '../application/chat_tools_provider.dart';
 import '../application/read_index_provider.dart';
@@ -64,13 +66,15 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String id;
   final int? initialMid;
   final String? initialName;
-  const ChatScreen({super.key, required this.id, this.initialMid, this.initialName});
+  const ChatScreen(
+      {super.key, required this.id, this.initialMid, this.initialName});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with WidgetsBindingObserver {
   final _textCtrl = TextEditingController();
   final _composerFocusNode = FocusNode();
   bool _pickingEmoji = false;
@@ -131,6 +135,179 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Set<int>? _selectedMids;
 
   late MessageTarget _target;
+  ChatDrafts? _drafts;
+  String? _draftAccount;
+  String? _draftTarget;
+  String? _scheduledDraft;
+  int _draftGeneration = 0;
+  int _editRevision = 0;
+  String _lastComposerText = '';
+  bool _restoringDraft = false;
+  Future<void> _draftReady = Future.value();
+  String? _acceptingShare;
+
+  void _composerTextChanged() {
+    _recomputeCanSend();
+    // TextEditingController also reports caret/composing changes. Those are
+    // not user edits and must never replace a pending stored draft with "".
+    if (_lastComposerText == _textCtrl.text) return;
+    _lastComposerText = _textCtrl.text;
+    if (!_restoringDraft) {
+      _editRevision++;
+      _saveDraft();
+    }
+  }
+
+  void _saveDraft({bool flush = false}) {
+    final drafts = _drafts;
+    final target = _draftTarget;
+    if (drafts == null || target == null) return;
+    final text = _textCtrl.text;
+    final mentions = List<int>.from(_pendingMentions);
+    unawaited(() async {
+      try {
+        await drafts.setDraft(target, text, mentions);
+        if (flush) await drafts.flush();
+      } catch (_) {
+        // The provider exposes disk failures; never clear the visible text.
+      }
+    }());
+  }
+
+  void _queueDraftBinding(String? account) {
+    if (account == null ||
+        (_draftAccount == account && _draftTarget == widget.id)) {
+      return;
+    }
+    final key = '$account/${widget.id}';
+    if (_scheduledDraft == key) return;
+    _scheduledDraft = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted ||
+          _scheduledDraft != key ||
+          ref.read(accountStoreProvider).valueOrNull?.currentAccountId !=
+              account) {
+        return;
+      }
+      _saveDraft(flush: true);
+      final generation = ++_draftGeneration;
+      final first = _draftAccount == null;
+      _draftAccount = account;
+      _draftTarget = widget.id;
+      _drafts = ref.read(chatDraftsProvider(account).notifier);
+      final ready = Completer<void>();
+      _draftReady = ready.future;
+      if (!first) {
+        _restoringDraft = true;
+        _textCtrl.clear();
+        _pendingMentions.clear();
+        _restoringDraft = false;
+        _closeMentionOverlay();
+        setState(() {
+          _staged.clear();
+          _replyToMid = null;
+          _replyTarget = null;
+          _canSend = false;
+        });
+      }
+      final revision = _editRevision;
+      try {
+        final Map<String, ChatDraft> stored =
+            ref.read(chatDraftsProvider(account)).valueOrNull ??
+                await ref.read(chatDraftsProvider(account).future);
+        if (!mounted ||
+            generation != _draftGeneration ||
+            _editRevision != revision ||
+            _textCtrl.text.isNotEmpty ||
+            ref.read(accountStoreProvider).valueOrNull?.currentAccountId !=
+                account) {
+          return;
+        }
+        final draft = stored[_draftTarget];
+        if (draft != null) {
+          _restoringDraft = true;
+          _pendingMentions
+            ..clear()
+            ..addAll(draft.mentions);
+          _textCtrl.value = TextEditingValue(
+              text: draft.text,
+              selection: TextSelection.collapsed(offset: draft.text.length));
+          _restoringDraft = false;
+        }
+      } catch (_) {
+        // A corrupt/unavailable draft must not block the conversation itself.
+      } finally {
+        ready.complete();
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _saveDraft(flush: true);
+  }
+
+  void _queueSharedContent(IncomingShareSelection? selection) {
+    if (selection == null ||
+        selection.chatId != widget.id ||
+        selection.accountId !=
+            ref.read(accountStoreProvider).valueOrNull?.currentAccountId ||
+        _acceptingShare == selection.payload.id) {
+      return;
+    }
+    _acceptingShare = selection.payload.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final shares = ref.read(incomingSharesProvider.notifier);
+      final selected = ref.read(selectedIncomingShareProvider.notifier);
+      bool current() =>
+          mounted &&
+          widget.id == selection.chatId &&
+          ref.read(accountStoreProvider).valueOrNull?.currentAccountId ==
+              selection.accountId &&
+          ref.read(selectedIncomingShareProvider)?.payload.id ==
+              selection.payload.id;
+      var failed = false;
+      try {
+        await _draftReady;
+        if (!current()) return;
+        if (selection.payload.text.isNotEmpty) {
+          final text = _textCtrl.text.isEmpty
+              ? selection.payload.text
+              : '${_textCtrl.text}\n${selection.payload.text}';
+          _textCtrl.value = TextEditingValue(
+              text: text,
+              selection: TextSelection.collapsed(offset: text.length));
+        }
+        for (final file in selection.payload.files) {
+          try {
+            final source = File(file.path);
+            if (await source.length() > 32 * 1024 * 1024) {
+              throw const FormatException();
+            }
+            final bytes = await source.readAsBytes();
+            if (!current()) return;
+            if (bytes.isEmpty || bytes.length > 32 * 1024 * 1024) {
+              throw const FormatException();
+            }
+            _stageFile(bytes, file.name);
+          } catch (_) {
+            failed = true;
+          }
+        }
+        if (current() && mounted) {
+          final l = AppL10n.of(context);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(failed ? l.shareImportFailed : l.shareStaged)));
+        }
+      } finally {
+        if (mounted && selected.state?.payload.id == selection.payload.id) {
+          selected.state = null;
+        }
+        unawaited(shares.ack(selection.payload.id));
+      }
+    });
+  }
 
   /// Send is enabled when there's text OR at least one staged image.
   void _recomputeCanSend() {
@@ -144,8 +321,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _target = _parseTarget(widget.id);
     _pendingInitialMid = widget.initialMid;
-
-    _textCtrl.addListener(_recomputeCanSend);
+    WidgetsBinding.instance.addObserver(this);
+    _textCtrl.addListener(_composerTextChanged);
 
     _itemPositionsListener.itemPositions.addListener(_onPositionsChanged);
   }
@@ -153,10 +330,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void didUpdateWidget(covariant ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.initialMid != widget.initialMid) {
+    if (oldWidget.id != widget.id ||
+        oldWidget.initialMid != widget.initialMid) {
       _pendingInitialMid = widget.initialMid;
     }
     if (oldWidget.id != widget.id) {
+      _saveDraft(flush: true);
       setState(() {
         _target = _parseTarget(widget.id);
         _selectedMids = null;
@@ -171,6 +350,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _saveDraft(flush: true);
+    _draftGeneration++;
+    WidgetsBinding.instance.removeObserver(this);
     _composerFocusNode.dispose();
     _textCtrl.dispose();
     _editCtrl.dispose();
@@ -253,6 +435,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       selection: TextSelection.collapsed(offset: triggerIndex + token.length),
     );
     _pendingMentions.add(uid);
+    _saveDraft();
   }
 
   void _onPositionsChanged() {
@@ -1002,6 +1185,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final account =
+        ref.watch(accountStoreProvider).valueOrNull?.currentAccountId;
+    _queueDraftBinding(account);
+    _queueSharedContent(ref.watch(selectedIncomingShareProvider));
+    if (account != null) {
+      ref.listen(draftSaveFailedProvider(account), (before, failed) {
+        if (failed && before != true && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(AppL10n.of(context).draftSaveFailed)));
+        }
+      });
+    }
     ref.listen(androidBackgroundedProvider, (previous, background) {
       if (previous == true && !background) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

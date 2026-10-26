@@ -124,6 +124,13 @@ flutter {
     source = "../.."
 }
 
+// Standalone builds use VoceChat's published client project by default.
+// A supplied custom google-services.json takes precedence. Do not rewrite its
+// package_name or change the installed application's identity to fit it.
+if (!googleServicesFile.exists()) {
+    android.sourceSets.standalone.res.srcDir("src/officialFirebase/res")
+}
+
 // Apply Google Services only when its config file has been injected (e.g. by
 // CI from a secret, or manually for local FCM testing) — see plugins block
 // above for why this can't be a plain `apply plugin`.

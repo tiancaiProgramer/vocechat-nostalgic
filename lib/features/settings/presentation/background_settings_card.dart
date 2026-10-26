@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/background/background_preferences.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import 'fcm_status_tile.dart';
 
 class BackgroundSettingsCard extends ConsumerStatefulWidget {
   const BackgroundSettingsCard({super.key});
@@ -50,9 +51,11 @@ class _BackgroundSettingsCardState extends ConsumerState<BackgroundSettingsCard>
 
   Future<void> _toggle(bool value) => _action(() async {
         final status = ref.read(backgroundPreferencesProvider).valueOrNull;
+        if (status == null || !status.pushEnabled || status.enabled == value) {
+          return;
+        }
         if (value &&
-            (status?.notifications != true ||
-                status?.batterySetupComplete != true)) {
+            (!status.notifications || !status.batterySetupComplete)) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(AppL10n.of(context).backgroundSetupRequired)));
           return;
@@ -70,14 +73,30 @@ class _BackgroundSettingsCardState extends ConsumerState<BackgroundSettingsCard>
     final status = state.valueOrNull;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Divider(),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(l.notificationMethodExclusive),
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        key: const Key('fcm-enabled'),
+        title: Text(l.fcmTitle),
+        subtitle: Text(l.fcmDescription),
+        value: status != null && !status.enabled,
+        onChanged: _busy || status == null || !status.pushEnabled
+            ? null
+            : (value) => _toggle(!value),
+      ),
       SwitchListTile.adaptive(
         contentPadding: EdgeInsets.zero,
         key: const Key('background-enabled'),
         title: Text(l.backgroundTitle),
         subtitle: Text(l.backgroundDescription),
         value: status?.enabled == true,
-        onChanged: _busy || status == null ? null : _toggle,
+        onChanged:
+            _busy || status == null || !status.pushEnabled ? null : _toggle,
       ),
+      const FcmStatusTile(),
       if (state.hasError) Text(l.backgroundActionFailed),
       if (state.isLoading) const LinearProgressIndicator(),
       if (status != null) ...[

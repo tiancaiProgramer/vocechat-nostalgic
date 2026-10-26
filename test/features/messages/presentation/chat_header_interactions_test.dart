@@ -8,6 +8,9 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vocechat_client/features/messages/application/chat_drafts_provider.dart';
+import 'package:vocechat_client/features/sharing/application/incoming_share_provider.dart';
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/core/storage/account_store.dart';
 import 'package:vocechat_client/features/messages/application/custom_stickers_provider.dart';
@@ -148,6 +151,21 @@ class _Chat extends ChatController {
   }
 }
 
+class _DelayedDrafts extends ChatDrafts {
+  final gate = Completer<Map<String, ChatDraft>>();
+  final writes = <String>[];
+  @override
+  Future<Map<String, ChatDraft>> build(String arg) => gate.future;
+  @override
+  Future<void> setDraft(String target, String text, List<int> mentions) async {
+    await gate.future;
+    writes.add(text);
+  }
+
+  @override
+  Future<void> flush() async {}
+}
+
 Widget _app(Widget child) => MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: AppL10n.localizationsDelegates,
@@ -156,8 +174,13 @@ Widget _app(Widget child) => MaterialApp(
     );
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   Future<ProviderContainer> pumpChat(WidgetTester tester,
-      {double width = 390, Directory? stickerDocuments}) async {
+      {double width = 390,
+      Directory? stickerDocuments,
+      String? draft,
+      IncomingShareSelection? share,
+      ChatDrafts? draftStore}) async {
     tester.view.physicalSize = Size(width, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -165,6 +188,7 @@ void main() {
     final container = ProviderContainer(overrides: [
       authControllerProvider.overrideWith(_Auth.new),
       accountStoreProvider.overrideWith(_Accounts.new),
+      if (draftStore != null) chatDraftsProvider.overrideWith(() => draftStore),
       if (stickerDocuments != null)
         stickerDocumentsProvider.overrideWith((ref) async => stickerDocuments),
       serverStoreProvider.overrideWith(_Servers.new),
@@ -176,6 +200,20 @@ void main() {
     addTearDown(container.dispose);
     container.listen(accountStoreProvider, (_, __) {});
     await container.read(accountStoreProvider.future);
+    if (draftStore == null) {
+      await tester.runAsync(() async {
+        await container.read(chatDraftsProvider('first::7').future);
+        if (draft != null) {
+          await container
+              .read(chatDraftsProvider('first::7').notifier)
+              .setDraft('g-42', draft, []);
+          await container.read(chatDraftsProvider('first::7').notifier).flush();
+        }
+      });
+    }
+    if (share != null) {
+      container.read(selectedIncomingShareProvider.notifier).state = share;
+    }
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: _app(const ChatScreen(id: 'g-42')),
@@ -183,6 +221,85 @@ void main() {
     await tester.pumpAndSettle();
     return container;
   }
+
+  testWidgets(
+      'text draft restores after remount, clears on send and is isolated on account switch',
+      (tester) async {
+    final first = await pumpChat(tester, draft: 'saved before restart');
+    final input = find.byType(TextField);
+    expect(tester.widget<TextField>(input).controller!.text,
+        'saved before restart');
+    await tester.enterText(input, 'new unfinished draft');
+    await tester.runAsync(
+        () => first.read(chatDraftsProvider('first::7').notifier).flush());
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() async => Future<void>.delayed(Duration.zero));
+    final next = await pumpChat(tester);
+    expect(tester.widget<TextField>(input).controller!.text,
+        'new unfinished draft');
+    final chat = next.read(chatControllerProvider(_target).notifier) as _Chat;
+    expect(chat.sentTexts, isEmpty);
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(chat.sentTexts.single.$1, 'new unfinished draft');
+    expect(next.read(chatDraftsProvider('first::7')).requireValue, isEmpty);
+    await tester.enterText(input, 'private account draft');
+    await tester.pump();
+    (next.read(accountStoreProvider.notifier) as _Accounts).switchAccount();
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+    expect(next.read(chatDraftsProvider('first::7')).requireValue['g-42']!.text,
+        'private account draft');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'system share appends to a restored draft and stages files without sending',
+      (tester) async {
+    final source = File('test/fixtures/stickers/red.png');
+    final container = await pumpChat(tester,
+        draft: 'existing draft',
+        share: IncomingShareSelection(
+            'first::7',
+            'g-42',
+            IncomingShare(id: 'shared-test', text: 'shared link', files: [
+              SharedFile(source.absolute.path, 'shared.png', 'image/png',
+                  source.lengthSync())
+            ])));
+    for (var i = 0; i < 20 && find.text('shared.png').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    final chat =
+        container.read(chatControllerProvider(_target).notifier) as _Chat;
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'existing draft\nshared link');
+    expect(find.text('shared.png'), findsOneWidget);
+    expect(chat.sentTexts, isEmpty);
+    expect(chat.sentStickers, isEmpty);
+    expect(container.read(selectedIncomingShareProvider), isNull);
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    expect(chat.sentTexts.single.$1, 'existing draft\nshared link');
+    expect(chat.sentStickers.single.$2, 'shared.png');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('late draft restoration never overwrites newly typed text',
+      (tester) async {
+    final delayed = _DelayedDrafts();
+    await pumpChat(tester, draftStore: delayed);
+    final input = find.byType(TextField);
+    await tester.enterText(input, 'newly typed');
+    delayed.gate.complete({'g-42': const ChatDraft('old stored text', [], 1)});
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, 'newly typed');
+    expect(delayed.writes, contains('newly typed'));
+    expect(tester.takeException(), isNull);
+  });
 
   Future<_NativeCamera> setupCamera(
       {bool galleryAllowed = true, bool galleryVideo = false}) async {

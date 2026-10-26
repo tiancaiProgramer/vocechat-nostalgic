@@ -14,6 +14,8 @@ import '../storage/video_stream_cache.dart';
 /// FCM watches this so an initialization that finishes after its timeout still
 /// activates notification listeners. An optional service never gates the UI.
 final firebaseInitializedProvider = StateProvider<bool>((ref) => false);
+final firebaseInitializationFailedProvider =
+    StateProvider<bool>((ref) => false);
 
 final startupTaskTimeoutProvider = Provider<Duration>(
   (ref) => const Duration(seconds: 8),
@@ -100,6 +102,9 @@ final appStartupProvider = FutureProvider<void>((ref) async {
     try {
       await Future<void>.sync(operation).timeout(timeout);
     } catch (error, stack) {
+      if (task == 'Firebase' && !disposed) {
+        ref.read(firebaseInitializationFailedProvider.notifier).state = true;
+      }
       report(task, error, stack);
     }
   }
@@ -116,10 +121,22 @@ final appStartupProvider = FutureProvider<void>((ref) async {
   await Future.wait([
     ...backends,
     attempt('Firebase', () async {
-      final ready = await tasks.initializeFirebase();
+      if (!disposed) {
+        ref.read(firebaseInitializationFailedProvider.notifier).state = false;
+      }
+      final bool ready;
+      try {
+        ready = await tasks.initializeFirebase();
+      } catch (_) {
+        if (!disposed) {
+          ref.read(firebaseInitializationFailedProvider.notifier).state = true;
+        }
+        rethrow;
+      }
       // This lives in the original operation, not its timed-out wrapper. A
       // slow successful native response must still make FCM available.
       if (!disposed && ready) {
+        ref.read(firebaseInitializationFailedProvider.notifier).state = false;
         ref.read(firebaseInitializedProvider.notifier).state = true;
       }
     }),

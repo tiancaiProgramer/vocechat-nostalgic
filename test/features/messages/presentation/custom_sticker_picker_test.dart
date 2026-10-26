@@ -266,6 +266,64 @@ void main() {
   });
 
   testWidgets(
+      'management drag sorting persists without adding sticker categories',
+      (tester) async {
+    await pump(tester);
+    final store = container.read(customStickersProvider('server::7').notifier);
+    await tester.runAsync(() async {
+      for (final name in ['red.png', 'blue.png', 'animated.gif']) {
+        await store.add(File('test/fixtures/stickers/$name').readAsBytesSync());
+      }
+    });
+    await tester.pumpAndSettle();
+    final before = container
+        .read(customStickersProvider('server::7'))
+        .requireValue
+        .map((s) => s.id)
+        .toList();
+    expect(find.byTooltip('Reorder'), findsNothing);
+    await tester.tap(find.text('Manage'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Reorder'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reorder stickers'), findsOneWidget);
+    final handles = find.byType(ReorderableDragStartListener);
+    final gesture = await tester.startGesture(tester.getCenter(handles.last));
+    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await gesture.moveBy(const Offset(0, -35));
+      await tester.pump(const Duration(milliseconds: 80));
+    }
+    await tester.pump(const Duration(milliseconds: 500));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done').last);
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pump();
+    await flushIo(
+        tester,
+        () =>
+            container
+                .read(customStickersProvider('server::7'))
+                .requireValue
+                .first
+                .id ==
+            before.last);
+    final order = container
+        .read(customStickersProvider('server::7'))
+        .requireValue
+        .map((s) => s.id)
+        .toList();
+    expect(order, [before.last, before.first, before[1]]);
+    await tester.runAsync(() async {
+      final reopened = CustomStickerStore(root, 'server::7');
+      expect((await reopened.list()).map((s) => s.id), order);
+    });
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'oversized import reports an error and an account switch blocks import',
       (tester) async {
     await pump(tester);

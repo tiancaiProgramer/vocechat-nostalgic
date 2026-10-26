@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Public Android SDK configuration from Privoce/vocechat-client.
+     No service-account key is included. Keep the nostalgic package identity. -->
+<resources>
+    <string name="google_app_id" translatable="false">1:526613312184:android:4ec9dc2559a6a11c487a4d</string>
+    <string name="gcm_defaultSenderId" translatable="false">526613312184</string>
+    <string name="project_id" translatable="false">vocechatdev</string>
+    <string name="google_api_key" translatable="false">AIzaSyAQwY4WDqoAxmP9wOX1vjHySpEkwMPR1N0</string>
+    <string name="google_storage_bucket" translatable="false">vocechatdev.appspot.com</string>
+</resources>

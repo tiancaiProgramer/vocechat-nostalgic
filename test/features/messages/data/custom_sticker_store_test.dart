@@ -50,6 +50,30 @@ void main() {
     codec.dispose();
   });
 
+  test(
+      'manual order survives reopen, cloud reconciliation and new imports without sync mutations',
+      () async {
+    final red = (await store.add(fixture('red.png'))).sticker;
+    final blue = (await store.add(fixture('blue.png'))).sticker;
+    final gif = (await store.add(fixture('animated.gif'))).sticker;
+    final pending = await store.pending();
+    await store.reorder([red.id, gif.id, blue.id]);
+    expect(
+        (await CustomStickerStore(root, 'server::7').list()).map((s) => s.id),
+        [red.id, gif.id, blue.id]);
+    expect(
+        (await store.pending())
+            .map((key, value) => MapEntry(key, value.revision)),
+        pending.map((key, value) => MapEntry(key, value.revision)));
+    await store.reconcile({red.id, blue.id, gif.id});
+    expect((await store.list()).map((s) => s.id), [red.id, gif.id, blue.id]);
+    final newer = (await store.add(fixture('red.jpg'))).sticker;
+    await store.reorder([blue.id, red.id, gif.id]);
+    expect((await store.list()).map((s) => s.id),
+        [blue.id, red.id, gif.id, newer.id]);
+    await expectLater(store.reorder([red.id, red.id]), throwsArgumentError);
+  });
+
   test('isolation includes both account and server identity', () async {
     final saved = (await store.add(fixture('red.png'))).sticker;
     for (final id in ['server::8', 'another-server::7']) {

@@ -5,6 +5,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/storage/server_store.dart';
+import '../../../core/storage/account_store.dart';
+import '../../messages/application/chat_drafts_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/safe_text.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -716,6 +718,16 @@ class _ConversationTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bg = isSelected ? AppTokens.selected : Colors.transparent;
+    final account =
+        ref.watch(accountStoreProvider).valueOrNull?.currentAccountId;
+    final draftKey = switch (item.key) {
+      UserConversationKey(uid: final uid) => 'u-$uid',
+      GroupConversationKey(gid: final gid) => 'g-$gid',
+    };
+    final draft = account == null
+        ? null
+        : ref.watch(chatDraftsProvider(account)
+            .select((state) => state.valueOrNull?[draftKey]));
 
     int? dmUid;
     if (!item.isChannel) {
@@ -725,7 +737,8 @@ class _ConversationTile extends ConsumerWidget {
     // Slice the presence map by THIS user's uid only — when someone else
     // toggles online, this select returns the same bool and skips rebuild.
     final isOnline = dmUid != null
-        ? ref.watch(presenceForDisplayProvider.select((m) => m[dmUid!] ?? false))
+        ? ref
+            .watch(presenceForDisplayProvider.select((m) => m[dmUid!] ?? false))
         : false;
 
     // Muted state drives the de-emphasized badge / bell-off indicator, matching
@@ -842,12 +855,16 @@ class _ConversationTile extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              safeText(item.lastPreview ?? ''),
+                              safeText(draft == null
+                                  ? item.lastPreview ?? ''
+                                  : '[${AppL10n.of(context).draftLabel}] ${draft.text.replaceAll('\n', ' ')}'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: AppTokens.zinc500,
+                                color: draft == null
+                                    ? AppTokens.zinc500
+                                    : AppTokens.error,
                                 height: 18 / 12,
                               ),
                             ),

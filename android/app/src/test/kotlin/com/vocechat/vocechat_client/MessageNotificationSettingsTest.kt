@@ -3,6 +3,7 @@ package com.vocechat.vocechat_client
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.provider.Settings
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -71,6 +72,36 @@ class MessageNotificationSettingsTest {
         assertEquals("package:${app.packageName}", intent.data.toString())
     }
 
+    @Test fun fcmModeRejectsQueuedLocalAlertsEvenWhileACallKeepsServiceRunning() = withBridge { messenger ->
+        val prefs = app.getSharedPreferences("background_messages", Context.MODE_PRIVATE)
+        val manager = app.getSystemService(NotificationManager::class.java)
+        MessageNotificationRouter.closeStore()
+        MainActivity.foreground = false
+        BackgroundMessageService.running = true
+        try {
+            prefs.edit().clear().putBoolean("enabled", false).commit()
+            messenger.invoke("configureNotifications", mapOf("session" to "server::1"))
+            messenger.invoke("sync", mapOf("session" to "server::1", "calling" to true, "background" to true))
+            val message = mapOf("session" to "server::1", "mid" to 42,
+                "target" to "u-2", "createdAt" to System.currentTimeMillis(),
+                "present" to true, "eligible" to true, "title" to "User", "body" to "hello")
+            messenger.invoke("notify", message)
+            assertTrue(manager.activeNotifications.isEmpty())
+            // A valid alert still works when background mode is selected.
+            prefs.edit().putBoolean("enabled", true).commit()
+            messenger.invoke("notify", message)
+            assertEquals(1, manager.activeNotifications.size)
+            manager.cancelAll()
+            prefs.edit().putBoolean("enabled", false).commit()
+            messenger.invoke("notify", message + ("mid" to 43))
+            assertTrue(manager.activeNotifications.isEmpty())
+        } finally {
+            BackgroundMessageService.running = false
+            MainActivity.foreground = false
+            MessageNotificationRouter.closeStore()
+        }
+    }
+
     private class Messenger : BinaryMessenger {
         private var handler: BinaryMessenger.BinaryMessageHandler? = null
         override fun send(channel: String, message: ByteBuffer?) = Unit
@@ -79,9 +110,9 @@ class MessageNotificationSettingsTest {
             assertEquals("chat.voce/background", channel)
             this.handler = handler
         }
-        fun invoke(method: String): Any? {
+        fun invoke(method: String, arguments: Any? = null): Any? {
             val codec = StandardMethodCodec.INSTANCE
-            val request = codec.encodeMethodCall(MethodCall(method, null))
+            val request = codec.encodeMethodCall(MethodCall(method, arguments))
             request.flip()
             var response: ByteBuffer? = null
             checkNotNull(handler).onMessage(request) { response = it }

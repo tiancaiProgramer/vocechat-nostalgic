@@ -125,10 +125,12 @@ class AuthApi {
     return RenewResponse.fromJson(resp.data as Map<String, dynamic>);
   }
 
-  Future<void> updateDeviceToken(String deviceToken) async {
+  Future<void> updateDeviceToken(String? deviceToken,
+      {CancelToken? cancelToken}) async {
     await _dio.put(
       '/api/token/device_token',
       data: {'device_token': deviceToken},
+      cancelToken: cancelToken,
     );
   }
 

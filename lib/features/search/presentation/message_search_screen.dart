@@ -13,6 +13,8 @@ import '../../channels/application/conversation_providers.dart';
 import '../../contacts/application/user_directory_provider.dart';
 import '../../messages/domain/message_models.dart';
 import '../data/message_search_session.dart';
+import '../data/message_search_filter.dart';
+import 'message_search_filters.dart';
 import 'search_page.dart';
 
 class MessageSearchScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,30 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
   List<MessageSearchHit> _results = const [];
   String _query = '';
   bool _busy = false, _failed = false;
+  MessageSearchFilter _filters = const MessageSearchFilter();
+
+  Future<void> _showFilters() async {
+    FocusScope.of(context).unfocus();
+    final account =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    final value = await showModalBottomSheet<MessageSearchFilter>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => MessageSearchFilters(
+            initial: _filters,
+            conversations:
+                ref.read(conversationsProvider).valueOrNull ?? const [],
+            users: ref.read(userDirectoryProvider).valueOrNull ?? const {}));
+    if (!mounted ||
+        value == null ||
+        account !=
+            ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
+      return;
+    }
+    setState(() => _filters = value);
+    _search(_controller.text);
+  }
 
   void _publish(MessageSearchSession session) {
     if (mounted && !session.cancelToken.isCancelled) {
@@ -48,10 +74,10 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
       _query = query;
       _session = null;
       _results = const [];
-      _busy = query.isNotEmpty;
+      _busy = query.isNotEmpty || _filters.isActive;
       _failed = false;
     });
-    if (query.isEmpty) return;
+    if (query.isEmpty && !_filters.isActive) return;
     final token = _token = CancelToken();
     _debounce = Timer(const Duration(milliseconds: 350), () async {
       try {
@@ -76,6 +102,7 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
             .toList();
         final session =
             ref.read(messageSearchFactoryProvider)(query, targets, token);
+        session.filters = _filters;
         _session = session;
         await session.prime();
         _publish(session);
@@ -133,6 +160,7 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
         accountStoreProvider.select((s) => s.valueOrNull?.currentAccountId),
         (previous, next) {
       if (previous != null && previous != next) {
+        _filters = const MessageSearchFilter();
         _controller.clear();
         _search('');
         context.go('/home');
@@ -146,6 +174,29 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
       controller: _controller,
       onChanged: _search,
       child: Column(children: [
+        Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              TextButton.icon(
+                  key: const ValueKey('search-filters'),
+                  onPressed: _showFilters,
+                  icon: const Icon(Icons.filter_list, size: 18),
+                  label: Text(_filters.isActive
+                      ? '${l.searchFilters} •'
+                      : l.searchFilters)),
+              if (_filters.kind != SearchMessageKind.text)
+                Text(searchKindLabel(l, _filters.kind),
+                    style: TextStyle(color: AppTokens.gray500)),
+              if (_filters.isActive) const Spacer(),
+              if (_filters.isActive)
+                IconButton(
+                    tooltip: l.filterReset,
+                    onPressed: () {
+                      _filters = const MessageSearchFilter();
+                      _search(_controller.text);
+                    },
+                    icon: const Icon(Icons.close, size: 18)),
+            ])),
         if (_busy) const LinearProgressIndicator(minHeight: 2),
         if (_failed)
           Padding(
@@ -153,7 +204,7 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
               child: Text(l.searchMessagesUnavailable,
                   style: TextStyle(color: AppTokens.gray500, fontSize: 12))),
         Expanded(
-            child: _query.isEmpty
+            child: _query.isEmpty && !_filters.isActive
                 ? Center(
                     child: Text(l.searchMessagesPrompt,
                         style: TextStyle(color: AppTokens.gray500)))
@@ -196,13 +247,28 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
                           '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
                       final sender = users[message.fromUid]?.name ??
                           l.chatUserFallback(message.fromUid);
+                      final kind = messageKind(message);
+                      final text = messageSearchText(message);
                       return ListTile(
+                        leading: kind == SearchMessageKind.text
+                            ? null
+                            : Icon(switch (kind) {
+                                SearchMessageKind.images =>
+                                  Icons.image_outlined,
+                                SearchMessageKind.videos =>
+                                  Icons.movie_outlined,
+                                _ => Icons.insert_drive_file_outlined,
+                              }),
                         title: Text(safeText(hit.conversation.name),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(safeText(message.displayContent),
+                              Text(
+                                  safeText(text.isEmpty
+                                      ? searchKindLabel(
+                                          l, kind ?? SearchMessageKind.files)
+                                      : text),
                                   maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(color: AppTokens.gray700)),

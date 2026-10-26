@@ -23,6 +23,26 @@ class BackgroundMessageBridge(private val context: Context, messenger: BinaryMes
         channel.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "fcmDiagnostic" -> {
+                        val reason = call.argument<String>("reason") ?: ""
+                        if (reason in listOf("token_ready", "token_timeout", "token_failed", "registration_failed",
+                                "SERVICE_NOT_AVAILABLE", "AUTHENTICATION_FAILED", "API_KEY_ANDROID_APP_BLOCKED",
+                                "API_KEY_INVALID", "FIS_AUTH_ERROR", "INSTALLATIONS_AUTH_ERROR", "PERMISSION_DENIED")) {
+                            val status = call.argument<Number>("status")?.toInt()
+                            android.util.Log.i("VoceFCM", "reason=$reason status=${status ?: 0}")
+                        }
+                        result.success(null)
+                    }
+                    "fcmState" -> {
+                        val phase = call.argument<String>("phase") ?: "unavailable"
+                        if (phase !in listOf("connecting", "registered", "standby", "disabled", "unavailable")) {
+                            result.error("fcm_phase", "Unknown state", null)
+                        } else {
+                            check(prefs.edit().putString("fcmState", phase).commit())
+                            android.util.Log.i("VoceFCM", "state=$phase")
+                            result.success(null)
+                        }
+                    }
                     "takeTap" -> { result.success(pendingTap); pendingTap = null }
                     "status" -> {
                         MessageNotificationRouter.ensureChannel(context)
@@ -81,7 +101,11 @@ class BackgroundMessageBridge(private val context: Context, messenger: BinaryMes
                         val account = call.argument<String>("session") ?: ""
                         val mid = call.argument<Number>("mid")?.toLong() ?: 0L
                         val present = call.argument<Boolean>("present") == true
-                        if (present && (!BackgroundMessageService.running || session != account)) {
+                        // A queued Flutter delivery may arrive after the mode
+                        // changed, including while a call keeps the service alive.
+                        if (present && (!prefs.getBoolean("enabled", false) ||
+                                !prefs.getBoolean("pushEnabled", true) ||
+                                !BackgroundMessageService.running || session != account)) {
                             result.success(null)
                         } else {
                             MessageNotificationRouter.deliver(context, MessageNotification(

@@ -754,7 +754,7 @@ abstract class AppL10n {
   /// No description provided for @notificationsPush.
   ///
   /// In en, this message translates to:
-  /// **'Push notifications'**
+  /// **'Message notifications'**
   String get notificationsPush;
 
   /// No description provided for @notificationsPushSubtitle.
@@ -2494,13 +2494,13 @@ abstract class AppL10n {
   /// No description provided for @backgroundTitle.
   ///
   /// In en, this message translates to:
-  /// **'Keep running in background'**
+  /// **'Background message notifications'**
   String get backgroundTitle;
 
   /// No description provided for @backgroundDescription.
   ///
   /// In en, this message translates to:
-  /// **'Keep a foreground notification and receive messages over the current account’s connection. Off by default.'**
+  /// **'Receive messages over a persistent background connection. Enabling this turns FCM off.'**
   String get backgroundDescription;
 
   /// No description provided for @backgroundActionFailed.
@@ -2910,6 +2910,240 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'All available history has been searched'**
   String get searchMessagesComplete;
+
+  /// No description provided for @draftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get draftLabel;
+
+  /// No description provided for @draftSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft could not be saved. Please keep this chat open and try again.'**
+  String get draftSaveFailed;
+
+  /// No description provided for @stickerSort.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder'**
+  String get stickerSort;
+
+  /// No description provided for @stickerSortTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder stickers'**
+  String get stickerSortTitle;
+
+  /// No description provided for @stickerSortHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag the handles to reorder'**
+  String get stickerSortHint;
+
+  /// No description provided for @shareTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Share to vocechat'**
+  String get shareTitle;
+
+  /// No description provided for @shareChooseTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a conversation. Review the content there before sending.'**
+  String get shareChooseTarget;
+
+  /// No description provided for @shareNoConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversations available. Start a chat first, then share again.'**
+  String get shareNoConversations;
+
+  /// No description provided for @shareImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some shared files could not be read. Please share them again.'**
+  String get shareImportFailed;
+
+  /// No description provided for @shareTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared files are too large (32 MiB per file, 64 MiB total, up to 16 files).'**
+  String get shareTooLarge;
+
+  /// No description provided for @shareReceiveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The shared content could not be received. Please share it again.'**
+  String get shareReceiveFailed;
+
+  /// No description provided for @shareStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared content is ready. Review it before sending.'**
+  String get shareStaged;
+
+  /// No description provided for @searchFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get searchFilters;
+
+  /// No description provided for @filterConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation'**
+  String get filterConversation;
+
+  /// No description provided for @filterSender.
+  ///
+  /// In en, this message translates to:
+  /// **'Sender'**
+  String get filterSender;
+
+  /// No description provided for @filterDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date range'**
+  String get filterDate;
+
+  /// No description provided for @filterKind.
+  ///
+  /// In en, this message translates to:
+  /// **'Message type'**
+  String get filterKind;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get filterAll;
+
+  /// No description provided for @filterText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get filterText;
+
+  /// No description provided for @filterImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get filterImages;
+
+  /// No description provided for @filterVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos'**
+  String get filterVideos;
+
+  /// No description provided for @filterFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get filterFiles;
+
+  /// No description provided for @filterReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset filters'**
+  String get filterReset;
+
+  /// No description provided for @filterApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get filterApply;
+
+  /// No description provided for @filterNoDates.
+  ///
+  /// In en, this message translates to:
+  /// **'Any date'**
+  String get filterNoDates;
+
+  /// No description provided for @filterMediaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter media, or enter a keyword to search text and filenames.'**
+  String get filterMediaHint;
+
+  /// No description provided for @fcmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'FCM push notifications'**
+  String get fcmTitle;
+
+  /// No description provided for @fcmConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting and registering this device…'**
+  String get fcmConnecting;
+
+  /// No description provided for @fcmRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Device registered. Message delivery still needs verification.'**
+  String get fcmRegistered;
+
+  /// No description provided for @fcmStandby.
+  ///
+  /// In en, this message translates to:
+  /// **'FCM is off. Background message notifications are selected.'**
+  String get fcmStandby;
+
+  /// No description provided for @fcmDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Message notifications are disabled.'**
+  String get fcmDisabled;
+
+  /// No description provided for @fcmUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable. Check Google Play services and network, then retry.'**
+  String get fcmUnavailable;
+
+  /// No description provided for @fcmSignInRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to register this device.'**
+  String get fcmSignInRequired;
+
+  /// No description provided for @fcmSettingsNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'In FCM mode, sound is controlled by Android chat-notification settings and group alerts follow server mute settings. The sound and mentions-only switches above apply to keep-alive mode.'**
+  String get fcmSettingsNotice;
+
+  /// No description provided for @fcmDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive pushes through Google Play services. Enabling this turns background message notifications off.'**
+  String get fcmDescription;
+
+  /// No description provided for @fcmStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'FCM connection status'**
+  String get fcmStatusTitle;
+
+  /// No description provided for @notificationMethodExclusive.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose one notification method. Switching turns the other off. To stop alerts, turn off message notifications above.'**
+  String get notificationMethodExclusive;
+
+  /// No description provided for @fcmDisconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing this device’s FCM registration…'**
+  String get fcmDisconnecting;
+
+  /// No description provided for @fcmUnregisterFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'FCM registration has not been removed. Check the VC connection and retry.'**
+  String get fcmUnregisterFailed;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

@@ -8,6 +8,25 @@ import 'package:vocechat_client/core/network/dio_client.dart';
 import 'package:vocechat_client/features/auth/data/auth_api.dart';
 
 void main() {
+  test('device push token can be registered and removed using JSON null',
+      () async {
+    final requests = <RequestOptions>[];
+    final dio = Dio()
+      ..interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+        requests.add(options);
+        handler
+            .resolve(Response<void>(requestOptions: options, statusCode: 204));
+      }));
+    addTearDown(dio.close);
+    final api = AuthApi(dio);
+    await api.updateDeviceToken('device-token');
+    await api.updateDeviceToken(null);
+    expect(
+        requests.map((r) => r.path), everyElement('/api/token/device_token'));
+    expect(requests.map((r) => r.method), everyElement('PUT'));
+    expect(requests[0].data, {'device_token': 'device-token'});
+    expect(requests[1].data, {'device_token': null});
+  });
   group('password login compatibility', () {
     const email = 'admin@example.com';
     const password = '  demo-密码🔑  ';

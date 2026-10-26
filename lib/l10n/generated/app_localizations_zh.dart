@@ -342,7 +342,7 @@ class AppL10nZh extends AppL10n {
   String get accountPasswordMasked => '*********';
 
   @override
-  String get notificationsPush => '推送通知';
+  String get notificationsPush => '消息通知';
 
   @override
   String get notificationsPushSubtitle => '接收新消息和提及的通知。';
@@ -1278,10 +1278,10 @@ class AppL10nZh extends AppL10n {
   String get authSaveFailed => '登录信息未能保存到本机，请重试。';
 
   @override
-  String get backgroundTitle => '常驻后台';
+  String get backgroundTitle => '后台消息通知';
 
   @override
-  String get backgroundDescription => '通过前台常驻通知保持当前账号的消息连接，默认关闭。';
+  String get backgroundDescription => '通过常驻后台连接接收消息，开启后自动关闭 FCM 推送。';
 
   @override
   String get backgroundActionFailed => '无法更新后台设置，请重试。';
@@ -1493,4 +1493,123 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get searchMessagesComplete => '已搜索全部可用聊天记录';
+
+  @override
+  String get draftLabel => '草稿';
+
+  @override
+  String get draftSaveFailed => '草稿保存失败，请暂时保留此聊天并重试。';
+
+  @override
+  String get stickerSort => '排序';
+
+  @override
+  String get stickerSortTitle => '表情排序';
+
+  @override
+  String get stickerSortHint => '拖动右侧手柄调整顺序';
+
+  @override
+  String get shareTitle => '分享到怀旧版';
+
+  @override
+  String get shareChooseTarget => '选择会话，内容将放入输入框，确认后再发送。';
+
+  @override
+  String get shareNoConversations => '暂无可选会话，请先建立聊天后再分享。';
+
+  @override
+  String get shareImportFailed => '部分分享文件无法读取，请重新分享。';
+
+  @override
+  String get shareTooLarge => '分享文件过大：单个最多32 MiB，总计64 MiB，最多16个文件。';
+
+  @override
+  String get shareReceiveFailed => '无法接收分享内容，请重新分享。';
+
+  @override
+  String get shareStaged => '分享内容已加入待发送区，请确认后发送。';
+
+  @override
+  String get searchFilters => '筛选';
+
+  @override
+  String get filterConversation => '会话';
+
+  @override
+  String get filterSender => '发送人';
+
+  @override
+  String get filterDate => '日期范围';
+
+  @override
+  String get filterKind => '消息类型';
+
+  @override
+  String get filterAll => '全部';
+
+  @override
+  String get filterText => '文字';
+
+  @override
+  String get filterImages => '图片';
+
+  @override
+  String get filterVideos => '视频';
+
+  @override
+  String get filterFiles => '文件';
+
+  @override
+  String get filterReset => '重置筛选';
+
+  @override
+  String get filterApply => '应用';
+
+  @override
+  String get filterNoDates => '不限日期';
+
+  @override
+  String get filterMediaHint => '可直接筛选媒体，或输入关键词查找正文和文件名。';
+
+  @override
+  String get fcmTitle => 'FCM 推送通知';
+
+  @override
+  String get fcmConnecting => '正在连接并登记设备…';
+
+  @override
+  String get fcmRegistered => '设备已登记，消息送达仍需验证。';
+
+  @override
+  String get fcmStandby => 'FCM 已关闭，当前使用后台消息通知。';
+
+  @override
+  String get fcmDisabled => '消息通知已关闭。';
+
+  @override
+  String get fcmUnavailable => '暂不可用，请检查 Google Play 服务和网络后重试。';
+
+  @override
+  String get fcmSignInRequired => '登录后登记推送设备。';
+
+  @override
+  String get fcmSettingsNotice =>
+      'FCM 声音在系统“聊天消息”通知中设置，群通知遵循服务器免打扰。上方“声音”和“仅提及”开关用于后台常驻模式。';
+
+  @override
+  String get fcmDescription => '通过 Google Play 服务接收推送，开启后自动关闭后台消息通知。';
+
+  @override
+  String get fcmStatusTitle => 'FCM 连接状态';
+
+  @override
+  String get notificationMethodExclusive =>
+      '两种通知方式只能选择一种，切换时会自动关闭另一种。停止提醒请关闭上方“消息通知”。';
+
+  @override
+  String get fcmDisconnecting => '正在关闭 FCM 设备登记…';
+
+  @override
+  String get fcmUnregisterFailed => 'FCM 登记尚未移除，请检查 VC 连接后重试。';
 }

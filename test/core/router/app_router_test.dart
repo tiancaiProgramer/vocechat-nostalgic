@@ -8,6 +8,7 @@ import 'package:vocechat_client/core/recovery/app_recovery.dart';
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/features/auth/application/auth_controller.dart';
 import 'package:vocechat_client/features/auth/domain/auth_models.dart';
+import 'package:vocechat_client/features/sharing/application/incoming_share_provider.dart';
 import 'package:vocechat_client/l10n/generated/app_localizations.dart';
 
 class _Auth extends AuthController {
@@ -28,6 +29,14 @@ class _Servers extends ServerStore {
         ServerConfig(
             id: 'server', name: 'server', baseUrl: 'https://server.test')
       ], currentServerId: 'server');
+}
+
+class _Inbox extends IncomingShares {
+  @override
+  List<IncomingShare> build() => const [];
+  void deliver() => state = const [
+        IncomingShare(id: 'test-share', text: 'shared link', files: [])
+      ];
 }
 
 void main() {
@@ -68,6 +77,7 @@ void main() {
     final auth = _Auth(signedIn);
     final container = ProviderContainer(overrides: [
       authControllerProvider.overrideWith(() => auth),
+      incomingSharesProvider.overrideWith(_Inbox.new),
       serverStoreProvider.overrideWith(_Servers.new),
       appRoutesProvider.overrideWithValue([
         for (final path in ['/splash', '/login', '/register', '/server-picker'])
@@ -76,6 +86,10 @@ void main() {
             path: '/home',
             builder: (_, __) => const Scaffold(body: Text('home')),
             routes: [
+              GoRoute(
+                  path: 'share',
+                  builder: (_, __) =>
+                      const Scaffold(body: Text('share chooser'))),
               GoRoute(
                   path: 'chat/:id',
                   builder: (_, state) => Scaffold(
@@ -115,6 +129,28 @@ void main() {
         '/server-picker');
     expect(find.text('/server-picker'), findsOneWidget);
     expect(find.text('/splash'), findsNothing);
+  });
+
+  testWidgets(
+      'cold system share waits for login then opens a chooser instead of sending',
+      (tester) async {
+    final app = await mount(tester, signedIn: false);
+    (app.container.read(incomingSharesProvider.notifier) as _Inbox).deliver();
+    await tester.pumpAndSettle();
+    expect(find.text('/login'), findsOneWidget);
+    app.auth.signIn();
+    await tester.pumpAndSettle();
+    expect(find.text('share chooser'), findsOneWidget);
+    final payload = app.container.read(pendingIncomingShareProvider)!;
+    app.container.read(selectedIncomingShareProvider.notifier).state =
+        IncomingShareSelection('server::1', 'u-8', payload);
+    app.container.read(incomingSharesProvider.notifier).hold(payload.id);
+    app.router.go('/home/chat/u-8');
+    await tester.pumpAndSettle();
+    expect(find.text('chat u-8'), findsOneWidget);
+    expect(app.container.read(selectedIncomingShareProvider)!.payload.id,
+        'test-share');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

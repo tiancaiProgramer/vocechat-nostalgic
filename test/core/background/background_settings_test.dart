@@ -26,6 +26,7 @@ void main() {
   var batteryVisited = false;
   var failBatterySettings = false;
   var failWrite = false;
+  var pushEnabled = true;
   final calls = <MethodCall>[];
   setUp(() {
     enabled = false;
@@ -34,6 +35,7 @@ void main() {
     batteryVisited = false;
     failBatterySettings = false;
     failWrite = false;
+    pushEnabled = true;
     calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(backgroundChannel, (call) async {
@@ -45,6 +47,7 @@ void main() {
           'notifications': notifications,
           'batteryExempt': battery,
           'batterySettingsVisited': batteryVisited,
+          'pushEnabled': pushEnabled,
         };
       }
       if (call.method == 'batterySettings') {
@@ -95,6 +98,52 @@ void main() {
     await tester.tap(find.byKey(const Key('background-enabled')));
     await tester.pumpAndSettle();
     expect(enabled, isFalse);
+  });
+  SwitchListTile method(WidgetTester tester, String key) =>
+      tester.widget<SwitchListTile>(find.byKey(Key(key)));
+
+  backgroundTestWidgets('FCM and background switches select exactly one method',
+      (tester) async {
+    await mount(tester);
+    expect(method(tester, 'fcm-enabled').value, isTrue);
+    expect(method(tester, 'background-enabled').value, isFalse);
+    await tester.tap(find.byKey(const Key('background-enabled')));
+    await tester.pumpAndSettle();
+    expect(method(tester, 'fcm-enabled').value, isFalse);
+    expect(method(tester, 'background-enabled').value, isTrue);
+    await tester.tap(find.byKey(const Key('fcm-enabled')));
+    await tester.pumpAndSettle();
+    expect(enabled, isFalse);
+    expect(method(tester, 'fcm-enabled').value, isTrue);
+    expect(method(tester, 'background-enabled').value, isFalse);
+    // Turning the selected FCM switch off selects background mode.
+    await tester.tap(find.byKey(const Key('fcm-enabled')));
+    await tester.pumpAndSettle();
+    expect(enabled, isTrue);
+    expect(method(tester, 'fcm-enabled').value, isFalse);
+    expect(method(tester, 'background-enabled').value, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await mount(tester);
+    expect(method(tester, 'background-enabled').value, isTrue);
+    expect(method(tester, 'fcm-enabled').value, isFalse);
+  });
+  backgroundTestWidgets('message master switch pauses method selection',
+      (tester) async {
+    pushEnabled = false;
+    await mount(tester);
+    expect(method(tester, 'fcm-enabled').onChanged, isNull);
+    expect(method(tester, 'background-enabled').onChanged, isNull);
+    expect(calls.where((c) => c.method == 'setEnabled'), isEmpty);
+  });
+  backgroundTestWidgets(
+      'FCM stays selected if background permission is missing', (tester) async {
+    notifications = false;
+    await mount(tester);
+    await tester.tap(find.byKey(const Key('fcm-enabled')));
+    await tester.pumpAndSettle();
+    expect(method(tester, 'fcm-enabled').value, isTrue);
+    expect(method(tester, 'background-enabled').value, isFalse);
+    expect(calls.where((c) => c.method == 'setEnabled'), isEmpty);
   });
   for (final missing in ['notifications', 'battery']) {
     backgroundTestWidgets('cannot enable before $missing is allowed',

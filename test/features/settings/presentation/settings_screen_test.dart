@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vocechat_client/core/background/background_preferences.dart';
+import 'package:vocechat_client/core/notifications/fcm_service.dart';
+import 'package:vocechat_client/core/notifications/fcm_token_sync.dart';
+import 'package:vocechat_client/core/startup/app_startup.dart';
 
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/features/auth/application/auth_controller.dart';
@@ -25,6 +28,30 @@ void desktopTestWidgets(String name, WidgetTesterCallback callback) {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  for (final keepAlive in [false, true]) {
+    testWidgets('notification controls accurately reflect FCM mode (keepAlive=$keepAlive)', (tester) async {
+      await tester.pumpWidget(ProviderScope(overrides: [
+        authControllerProvider.overrideWith(_RegularAuthController.new),
+        serverStoreProvider.overrideWith(_TestServerStore.new),
+        backgroundPreferencesProvider.overrideWith(() => _NotificationPreferences(keepAlive)),
+        firebaseInitializedProvider.overrideWith((ref) => true),
+        fcmPhaseProvider.overrideWith((ref) => keepAlive ? FcmPhase.standby : FcmPhase.registered),
+      ], child: _localizedApp()));
+      await tester.pumpAndSettle();
+      final menu = find.text('Notifications');
+      await tester.ensureVisible(menu);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('fcm-status')), findsOneWidget);
+      final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+      expect(switches.length, greaterThanOrEqualTo(3));
+      expect(switches[0].onChanged, isNotNull);
+      expect(switches[1].onChanged != null, keepAlive);
+      expect(switches[2].onChanged != null, keepAlive);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final width in [390.0, 1000.0]) {
     desktopTestWidgets('AVO opens only from its own menu at width $width',
@@ -181,6 +208,14 @@ void main() {
 
     expect(find.text('Delete account'), findsNothing);
   });
+}
+
+class _NotificationPreferences extends BackgroundPreferences {
+  _NotificationPreferences(this.keepAlive);
+  final bool keepAlive;
+  @override
+  Future<BackgroundStatus> build() async => BackgroundStatus(enabled: keepAlive,
+      notifications: true, batteryExempt: true, pushEnabled: true);
 }
 
 Widget _localizedApp() {

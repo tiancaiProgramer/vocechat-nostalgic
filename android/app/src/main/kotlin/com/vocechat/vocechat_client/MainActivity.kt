@@ -16,6 +16,7 @@ class MainActivity : AgoraPIPFlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) AppFlutterEngine.notificationTap(intent)
+        if (savedInstanceState == null) acceptShare(intent)
     }
 
     override fun provideFlutterEngine(context: Context): FlutterEngine? =
@@ -56,6 +57,7 @@ class MainActivity : AgoraPIPFlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) AppFlutterEngine.notificationTap(intent)
+        acceptShare(intent)
     }
 
     override fun onDestroy() {
@@ -76,12 +78,19 @@ class MainActivity : AgoraPIPFlutterActivity() {
     private var updater: AndroidUpdateInstaller? = null
     private var secureStorageCommit: SecureStorageCommit? = null
     private var externalLinks: ExternalLinkLauncher? = null
+    private var incomingShares: IncomingShareBridge? = null
+
+    private fun acceptShare(intent: Intent?) {
+        if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) AppFlutterEngine.shareIntent(intent)
+        else incomingShares?.receive(intent)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) {
             updater = AndroidUpdateInstaller(this, flutterEngine.dartExecutor.binaryMessenger)
         } else {
+            incomingShares = IncomingShareBridge(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
             // Play owns its engine here. Standalone registers the same bridge
             // in AppFlutterEngine.Resources for the retained engine's lifetime.
             externalLinks = ExternalLinkLauncher(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
@@ -90,6 +99,8 @@ class MainActivity : AgoraPIPFlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        incomingShares?.dispose()
+        incomingShares = null
         externalLinks?.dispose()
         externalLinks = null
         secureStorageCommit?.dispose()

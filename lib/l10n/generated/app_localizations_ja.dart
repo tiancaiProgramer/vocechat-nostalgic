@@ -1308,11 +1308,11 @@ class AppL10nJa extends AppL10n {
       'Could not save your sign-in information on this device. Please try again.';
 
   @override
-  String get backgroundTitle => 'Keep running in background';
+  String get backgroundTitle => 'Background message notifications';
 
   @override
   String get backgroundDescription =>
-      'Keep a foreground notification and receive messages over the current account’s connection. Off by default.';
+      'Receive messages over a persistent background connection. Enabling this turns FCM off.';
 
   @override
   String get backgroundActionFailed =>
@@ -1551,4 +1551,136 @@ class AppL10nJa extends AppL10n {
   @override
   String get searchMessagesComplete =>
       'All available history has been searched';
+
+  @override
+  String get draftLabel => 'Draft';
+
+  @override
+  String get draftSaveFailed =>
+      'Draft could not be saved. Please keep this chat open and try again.';
+
+  @override
+  String get stickerSort => 'Reorder';
+
+  @override
+  String get stickerSortTitle => 'Reorder stickers';
+
+  @override
+  String get stickerSortHint => 'Drag the handles to reorder';
+
+  @override
+  String get shareTitle => 'Share to vocechat';
+
+  @override
+  String get shareChooseTarget =>
+      'Choose a conversation. Review the content there before sending.';
+
+  @override
+  String get shareNoConversations =>
+      'No conversations available. Start a chat first, then share again.';
+
+  @override
+  String get shareImportFailed =>
+      'Some shared files could not be read. Please share them again.';
+
+  @override
+  String get shareTooLarge =>
+      'Shared files are too large (32 MiB per file, 64 MiB total, up to 16 files).';
+
+  @override
+  String get shareReceiveFailed =>
+      'The shared content could not be received. Please share it again.';
+
+  @override
+  String get shareStaged =>
+      'Shared content is ready. Review it before sending.';
+
+  @override
+  String get searchFilters => 'Filters';
+
+  @override
+  String get filterConversation => 'Conversation';
+
+  @override
+  String get filterSender => 'Sender';
+
+  @override
+  String get filterDate => 'Date range';
+
+  @override
+  String get filterKind => 'Message type';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterText => 'Text';
+
+  @override
+  String get filterImages => 'Images';
+
+  @override
+  String get filterVideos => 'Videos';
+
+  @override
+  String get filterFiles => 'Files';
+
+  @override
+  String get filterReset => 'Reset filters';
+
+  @override
+  String get filterApply => 'Apply';
+
+  @override
+  String get filterNoDates => 'Any date';
+
+  @override
+  String get filterMediaHint =>
+      'Filter media, or enter a keyword to search text and filenames.';
+
+  @override
+  String get fcmTitle => 'FCM push notifications';
+
+  @override
+  String get fcmConnecting => 'Connecting and registering this device…';
+
+  @override
+  String get fcmRegistered =>
+      'Device registered. Message delivery still needs verification.';
+
+  @override
+  String get fcmStandby =>
+      'FCM is off. Background message notifications are selected.';
+
+  @override
+  String get fcmDisabled => 'Message notifications are disabled.';
+
+  @override
+  String get fcmUnavailable =>
+      'Unavailable. Check Google Play services and network, then retry.';
+
+  @override
+  String get fcmSignInRequired => 'Sign in to register this device.';
+
+  @override
+  String get fcmSettingsNotice =>
+      'In FCM mode, sound is controlled by Android chat-notification settings and group alerts follow server mute settings. The sound and mentions-only switches above apply to keep-alive mode.';
+
+  @override
+  String get fcmDescription =>
+      'Receive pushes through Google Play services. Enabling this turns background message notifications off.';
+
+  @override
+  String get fcmStatusTitle => 'FCM connection status';
+
+  @override
+  String get notificationMethodExclusive =>
+      'Choose one notification method. Switching turns the other off. To stop alerts, turn off message notifications above.';
+
+  @override
+  String get fcmDisconnecting => 'Removing this device’s FCM registration…';
+
+  @override
+  String get fcmUnregisterFailed =>
+      'FCM registration has not been removed. Check the VC connection and retry.';
 }

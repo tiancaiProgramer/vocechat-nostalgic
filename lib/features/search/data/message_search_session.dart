@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../messages/data/message_api.dart';
 import '../../messages/data/message_cache.dart';
 import '../../messages/domain/message_models.dart';
+import 'message_search_filter.dart';
 
 class SearchConversation {
   const SearchConversation(
@@ -53,6 +54,7 @@ class MessageSearchSession {
       required this.cancelToken,
       required this.loadHistory,
       required this.readCache,
+      this.filters = const MessageSearchFilter(),
       this.pageSize = 100})
       : query = query.trim().toLowerCase(),
         _histories = {for (final c in conversations) c.id: _History(c)};
@@ -62,9 +64,13 @@ class MessageSearchSession {
   final HistoryLoader loadHistory;
   final Future<List<ChatMessage>> Function(MessageTarget) readCache;
   final int pageSize;
+  MessageSearchFilter filters;
   final Map<String, _History> _histories;
   int lastErrors = 0;
-  bool get hasMore => _histories.values.any((h) => !h.exhausted);
+  Iterable<_History> get _activeHistories => _histories.values.where((h) =>
+      filters.conversationId == null ||
+      h.conversation.id == filters.conversationId);
+  bool get hasMore => _activeHistories.any((h) => !h.exhausted);
 
   void _checkCancelled() {
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
@@ -86,7 +92,7 @@ class MessageSearchSession {
   }
 
   Future<void> prime() async {
-    final histories = _histories.values.toList();
+    final histories = _activeHistories.toList();
     for (var i = 0; i < histories.length; i += 3) {
       _checkCancelled();
       await Future.wait(histories.skip(i).take(3).map((history) async {
@@ -103,7 +109,7 @@ class MessageSearchSession {
 
   Future<void> loadMore({void Function()? onProgress}) async {
     lastErrors = 0;
-    final histories = _histories.values.where((h) => !h.exhausted).toList();
+    final histories = _activeHistories.where((h) => !h.exhausted).toList();
     for (var i = 0; i < histories.length; i += 3) {
       _checkCancelled();
       await Future.wait(histories.skip(i).take(3).map((history) async {
@@ -131,10 +137,10 @@ class MessageSearchSession {
   }
 
   List<MessageSearchHit> get hits {
-    if (query.isEmpty) return const [];
+    if (query.isEmpty && !filters.isActive) return const [];
     final hits = <MessageSearchHit>[];
     final now = DateTime.now().millisecondsSinceEpoch;
-    for (final history in _histories.values) {
+    for (final history in _activeHistories) {
       final visible = Map<int, ChatMessage>.from(history.messages);
       final reactions = history.messages.values
           .where((m) => m.detail is ReactionMessageDetail)
@@ -156,14 +162,16 @@ class MessageSearchSession {
         }
       }
       for (final message in visible.values) {
-        if (message.detail is ReactionMessageDetail || message.isExpiredAt(now)) {
+        if (message.detail is ReactionMessageDetail ||
+            message.isExpiredAt(now)) {
           continue;
         }
-        if (message.displayContentType != 'text/plain' &&
-            message.displayContentType != 'text/markdown') {
+        if (messageKind(message) == null ||
+            !filters.includes(history.conversation.id, message)) {
           continue;
         }
-        if (message.displayContent.toLowerCase().contains(query)) {
+        if (query.isEmpty ||
+            messageSearchText(message).toLowerCase().contains(query)) {
           hits.add(MessageSearchHit(history.conversation, message));
         }
       }

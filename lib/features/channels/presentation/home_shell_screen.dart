@@ -97,7 +97,7 @@ class _HomeShellScreenState extends ConsumerState<HomeShellScreen> {
     // dependency does not re-fire on a nested Navigator pop.
     final location = GoRouterState.of(context).uri.path;
     final isChatting = !isWide &&
-        RegExp(r'^/home/(chat/|search$|people$)').hasMatch(location);
+        RegExp(r'^/home/(chat/|search$|people$|share$)').hasMatch(location);
 
     if (isWide) {
       return Scaffold(

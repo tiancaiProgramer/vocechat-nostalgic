@@ -17,6 +17,7 @@ import 'package:vocechat_client/features/search/data/contact_search_api.dart';
 import 'package:vocechat_client/features/search/data/message_search_session.dart';
 import 'package:vocechat_client/features/search/presentation/contact_search_screen.dart';
 import 'package:vocechat_client/features/search/presentation/message_search_screen.dart';
+import 'package:vocechat_client/features/search/data/message_search_filter.dart';
 import 'package:vocechat_client/legacy_ui/legacy_chrome.dart';
 import 'package:vocechat_client/l10n/generated/app_localizations.dart';
 
@@ -169,6 +170,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('message u-8 42'), findsOneWidget);
     app.router.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('needle in message body'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'filter sheet can browse media without a keyword and reset to text search',
+      (tester) async {
+    await _mount(tester);
+    await _choose(tester, 'Search');
+    await tester.tap(find.byKey(const ValueKey('search-filters')));
+    await tester.pumpAndSettle();
+    expect(find.text('Conversation'), findsOneWidget);
+    expect(find.text('Sender'), findsOneWidget);
+    expect(find.text('Date range · Any date'), findsOneWidget);
+    await tester.tap(find.byType(DropdownButtonFormField<SearchMessageKind>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Images').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('Images'), findsOneWidget);
+    expect(find.text('needle in message body'), findsNothing);
+    expect(find.byTooltip('Reset filters'), findsOneWidget);
+    await tester.tap(find.byTooltip('Reset filters'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Reset filters'), findsNothing);
+    await tester.enterText(find.byType(CupertinoSearchTextField), 'needle');
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(find.text('needle in message body'), findsOneWidget);
     expect(tester.takeException(), isNull);

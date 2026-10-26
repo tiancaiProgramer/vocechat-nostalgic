@@ -219,6 +219,22 @@ class CustomStickerStore {
         } on FileSystemException {/* absent */}
       });
 
+  /// Local presentation order only. Does not manufacture uploads/deletions or
+  /// overwrite new items which arrived while the management list was open.
+  Future<void> reorder(List<String> ids) => _serial(() async {
+        await _load();
+        if (ids.toSet().length != ids.length) {
+          throw ArgumentError('Duplicate sticker ids');
+        }
+        final current = {for (final item in _items!) item.id: item};
+        final ordered = <CustomSticker>[
+          for (final id in ids)
+            if (current.containsKey(id)) current.remove(id)!,
+          ...current.values,
+        ];
+        await _persist(ordered);
+      });
+
   Future<Map<String, StickerMutation>> pending() => _serial(() async {
         await _load();
         return Map.unmodifiable(_pending);

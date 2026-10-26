@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33+3113
+版本：0.3.33+3116
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,7 +18,7 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3113。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3116。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
@@ -92,3 +92,52 @@ Windows 构建已使用 Flutter 3.35.7 / Dart 3.9.2、JDK17、SDK36、NDK27.0.12
 3113已在Android手机上保留数据覆盖安装，实机核对联系人查询、原会话与文字/图片历史、
 中英文聊天内容搜索、结果定位高亮及返回保留结果。未发送测试消息，临时UI辅助程序已移除。
 ARM64 Release包签名与原版一致，完整性和16KiB ZIP对齐检查通过。
+
+3114：按账号、会话保存文字草稿及提及用户，切换页面/后台及时落盘；会话列表显示草稿标记。
+仅保存文字草稿，不保存待发送附件、引用消息。旧草稿的延迟读取不能覆盖新输入。
+Android系统分享支持文字、链接、图片、视频和文件，先选择会话，再放入待发送区，由用户点击发送。
+最多16个文件、单个32MiB、合计64MiB；临时文件由应用读取后清理，失败或超限明确提示。
+聊天记录搜索新增会话、发送人、日期范围、文字/图片/视频/文件筛选，保留历史翻页及定位高亮。
+收藏表情管理页支持拖动排序，每个账号在本机保存顺序；不增加分类，不改变服务器同步协议。
+本次不包含通知栏直接回复，不需要升级NAS表情服务。
+验证记录：本机完整客户端662项通过、5项环境用例跳过；Android原生36项通过；修改范围静态检查无问题。
+
+3115：Standalone构建默认使用Privoce/vocechat-client公开的Android Firebase客户端配置，
+保留怀旧版包名与签名；自定义google-services.json存在时优先使用自定义项目。不包含服务账号私钥。
+配置来源：https://github.com/Privoce/vocechat-client/blob/master/android/app/google-services.json
+服务端官方开关：https://github.com/Privoce/vocechat-server-rust/blob/master/src/api/admin_fcm.rs
+后台常驻开启时清除当前设备的FCM登记，避免与实时连接消息重复提醒；关闭常驻时登记FCM。
+客户端启动、令牌轮换、切换账号、恢复前台及重试时同步登记；失败30秒后重试，退出后取消旧任务。
+点击推送须匹配当前登录的server_id及私聊接收用户，不将其他服务器通知打开成当前账号的聊天。
+官方FCM载荷由Android展示，声音使用系统聊天消息通知设置；群通知遵循VC服务端免打扰。
+本地声音及仅提及开关在FCM模式禁用，保留其在常驻模式的原行为。不会自动改动VC管理员配置。
+推送需要VC管理员在Firebase三选一配置中选择“使用官方配置”，手机Google Play服务及网络可用。
+自动测试验证不等同于真实推送送达，须分别核对注册和后台/进程退出后的消息测试。
+
+3115实机记录：用户确认VC后台Firebase已选择“使用官方配置”（选项为禁用、官方、自定义）。
+已保留数据覆盖安装；Firebase初始化成功，FCM SDK获取令牌超时。
+手机端TCP测试：VC域名36端口与mtalk.google.com:5228可连接；
+firebaseinstallations.googleapis.com:443及android.clients.google.com:443连接超时。
+当前等待手机Google登记链路可用后继续测试；不能据此宣称FCM令牌或消息送达已验证。
+
+网络切换后续验证：实机日志出现token_ready，已成功取得官方Firebase项目的设备令牌；
+常驻模式下state=standby，清除VC设备推送登记成功。等待切换FCM模式确认登记及实际消息送达。
+
+3115最终实机验证：用户切换为Google可用网络后取得token_ready；
+用户关闭后台常驻后，FCM状态registered，设备令牌已成功登记到VC。
+VC管理员后台已选择“使用官方配置”。用户实测：怀旧版退到后台后收到另一账号的消息通知，
+点击通知进入正确聊天。后台FCM接收与通知跳转已验证，手机保持FCM模式。
+本次未单独验证普通进程被系统回收后的冷启动推送，未做系统“强行停止”场景。
+
+3116：通知设置显式提供互斥的FCM/后台消息开关，一种开启时另一种关闭。
+关闭当前方式会选择另一种；关闭上方“消息通知”总开关可停止提醒。
+后台模式不获取Google令牌，Firebase初始化失败也可通过VC接口撤销登记；失败提示并重试。
+登录和注册不再绕过用户偏好单独登记FCM，由通知服务在认证完成后统一处理。
+原生入口拒绝切换后排队到达的本地通知，即使通话仍保持前台服务也不例外。
+现有已投递的FCM消息不能追溯撤回；没有增加双通道兜底或按正文猜测去重。
+验证：相关Flutter测试68项通过；Android原生回归37项通过；修改范围静态分析无问题。
+正式版包名、版本、原签名、ARM64、ZIP完整性和16KiB对齐已核验。
+首次交付只打包；后续经用户要求已使用原签名保留数据覆盖安装3116。
+3116实机：用户确认两种通知方式正常互斥；FCM与后台连接模式各收到一次通知，点击均进入正确聊天。
+固定状态日志确认后台模式standby、切回FCM后token_ready及registered；最终手机保持FCM模式。
+临时测试工具已移除，未由助手发送真实消息。

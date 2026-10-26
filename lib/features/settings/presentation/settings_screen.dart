@@ -1030,6 +1030,9 @@ class _NotificationsPane extends ConsumerWidget {
         preferences?.pushEnabled ?? this.notificationsEnabled;
     final soundEnabled = preferences?.soundEnabled ?? this.soundEnabled;
     final mentionOnlyMode = preferences?.mentionsOnly ?? this.mentionOnlyMode;
+    // Official FCM payloads are displayed by Android and lack mention metadata.
+    // Keep local-only controls from pretending to change that delivery path.
+    final usesFcm = preferences?.enabled == false;
     Future<void> update(Future<void> Function() write) async {
       try {
         await write();
@@ -1072,14 +1075,14 @@ class _NotificationsPane extends ConsumerWidget {
             title: l.notificationsSound,
             subtitle: l.notificationsSoundSubtitle,
             value: soundEnabled,
-            onChanged: notificationsEnabled ? onSoundChanged : null,
+            onChanged: notificationsEnabled && !usesFcm ? onSoundChanged : null,
           ),
           const _CardDivider(),
           _SwitchTile(
             title: l.notificationsMentionsOnly,
             subtitle: l.notificationsMentionsOnlySubtitle,
             value: mentionOnlyMode,
-            onChanged: notificationsEnabled ? onMentionOnlyChanged : null,
+            onChanged: notificationsEnabled && !usesFcm ? onMentionOnlyChanged : null,
           ),
           const BackgroundSettingsCard(),
         ],

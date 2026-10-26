@@ -37,7 +37,7 @@ class ApiException implements Exception {
 void _redactingLogPrint(Object msg) {
   if (!AppLog.isEnabled(LogTag.network)) return;
   final s = msg.toString();
-  const sensitive = ['X-API-Key', 'password', 'refresh_token'];
+  const sensitive = ['X-API-Key', 'password', 'refresh_token', 'device_token'];
   for (final keyword in sensitive) {
     if (s.contains(keyword)) {
       AppLog.d(LogTag.network, () => '[REDACTED — contains $keyword]');

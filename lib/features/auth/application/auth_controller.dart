@@ -7,7 +7,6 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/network/dio_client.dart';
-import '../../../core/notifications/fcm_service.dart';
 import '../../../core/storage/account_store.dart';
 import '../../../core/storage/login_device_id.dart';
 import '../../../core/storage/media_cache.dart';
@@ -624,12 +623,12 @@ class AuthController extends _$AuthController {
             ? ref.read(authApiProvider)
             : AuthApi(VoceDioClient(baseUrl: targetBaseUrl, ref: ref).dio);
 
-        final deviceToken = await getFcmDeviceToken();
+        // Notification registration belongs to FcmService after authentication,
+        // so login cannot re-enable FCM when background mode is selected.
         final response = await api.loginWithPassword(
           email: email,
           password: password,
           device: await ref.read(loginDeviceIdProvider.future),
-          deviceToken: deviceToken.isEmpty ? null : deviceToken,
         );
 
         // Recheck the organization UUID in case the installation changed
@@ -941,14 +940,7 @@ class AuthController extends _$AuthController {
             );
         await ref.read(accountStoreProvider.notifier).selectAccount(accountId);
 
-        // Best-effort: upload the FCM token so this device receives pushes.
-        // Failures are silently swallowed — registration itself has succeeded.
-        final regDeviceToken = await getFcmDeviceToken();
-        if (regDeviceToken.isNotEmpty) {
-          try {
-            await api.updateDeviceToken(regDeviceToken);
-          } catch (_) {}
-        }
+        // FcmService applies the selected notification method once auth settles.
 
         return AuthState.authenticated(user: response.user);
       } finally {

@@ -36,6 +36,11 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true">
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="background_messages" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_background_message" />
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
         <service
             android:name=".BackgroundMessageService"
             android:exported="false"
@@ -77,6 +82,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
             <!-- Custom URL scheme for invitation-link deep links (e.g.
                  vocechat://open?link=<encoded-invite-url>). Not an App Link

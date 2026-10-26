@@ -302,6 +302,81 @@ class _ComposerEmojiPickerState extends ConsumerState<ComposerEmojiPicker> {
     }
   }
 
+  Future<void> _sort() async {
+    if (_busy || !_isCurrentAccount) return;
+    final l = AppL10n.of(context);
+    final items = [
+      ...?ref.read(customStickersProvider(widget.accountId!)).valueOrNull
+    ];
+    if (!mounted || !_isCurrentAccount || items.length < 2) return;
+    final store =
+        ref.read(customStickerStoreProvider(widget.accountId!)).requireValue;
+    final ids = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+          builder: (context, update) => SafeArea(
+                child: SizedBox(
+                    height: MediaQuery.sizeOf(context).height * .65,
+                    child: Column(children: [
+                      Text(l.stickerSortTitle,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(l.stickerSortHint)),
+                      Expanded(
+                          child: ReorderableListView.builder(
+                        buildDefaultDragHandles: false,
+                        itemCount: items.length,
+                        onReorder: (from, to) => update(() {
+                          if (to > from) to--;
+                          items.insert(to, items.removeAt(from));
+                        }),
+                        itemBuilder: (context, index) => ListTile(
+                          key: ValueKey('sort-${items[index].id}'),
+                          leading: Image.file(store.fileFor(items[index]),
+                              width: 48,
+                              height: 48,
+                              cacheWidth: 96,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.broken_image_outlined)),
+                          title: Text('${index + 1}'),
+                          trailing: ReorderableDragStartListener(
+                              index: index,
+                              child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Semantics(
+                                      label: l.stickerSort,
+                                      child: const Icon(Icons.drag_handle)))),
+                        ),
+                      )),
+                      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(l.actionCancel)),
+                        TextButton(
+                            onPressed: () => Navigator.pop(
+                                context, items.map((e) => e.id).toList()),
+                            child: Text(l.stickerDone)),
+                      ]),
+                    ])),
+              )),
+    );
+    if (!mounted || !_isCurrentAccount || ids == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(customStickersProvider(widget.accountId!).notifier)
+          .reorder(ids);
+    } catch (error) {
+      if (mounted) _feedback(stickerErrorLabel(l, error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Keep the account state alive while a native picker is open.
@@ -402,6 +477,13 @@ class _ComposerEmojiPickerState extends ConsumerState<ComposerEmojiPicker> {
                             label: Text(l.stickerImport,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis)))),
+            if (_managing)
+              IconButton(
+                  tooltip: l.stickerSort,
+                  onPressed: _busy || (stickers.valueOrNull?.length ?? 0) < 2
+                      ? null
+                      : _sort,
+                  icon: const Icon(Icons.swap_vert)),
             IconButton(
                 tooltip: syncLabel,
                 onPressed: syncStatus == StickerSyncStatus.syncing
