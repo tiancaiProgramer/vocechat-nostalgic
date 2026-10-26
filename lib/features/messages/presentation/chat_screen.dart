@@ -62,7 +62,9 @@ import 'reaction_widgets.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String id;
-  const ChatScreen({super.key, required this.id});
+  final int? initialMid;
+  final String? initialName;
+  const ChatScreen({super.key, required this.id, this.initialMid, this.initialName});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -73,6 +75,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _composerFocusNode = FocusNode();
   bool _pickingEmoji = false;
   int? _locatingMid;
+  int? _pendingInitialMid;
   final _editCtrl = TextEditingController();
   final _searchAnchorKey = GlobalKey();
   final _sendBoxKey = GlobalKey();
@@ -140,6 +143,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _target = _parseTarget(widget.id);
+    _pendingInitialMid = widget.initialMid;
 
     _textCtrl.addListener(_recomputeCanSend);
 
@@ -149,6 +153,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void didUpdateWidget(covariant ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id || oldWidget.initialMid != widget.initialMid) {
+      _pendingInitialMid = widget.initialMid;
+    }
     if (oldWidget.id != widget.id) {
       setState(() {
         _target = _parseTarget(widget.id);
@@ -1004,6 +1011,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
     final l = AppL10n.of(context);
     final messagesAsync = ref.watch(chatControllerProvider(_target));
+    if (_pendingInitialMid != null && messagesAsync.hasValue) {
+      final mid = _pendingInitialMid!;
+      final target = _target;
+      _pendingInitialMid = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _target == target && mid > 0) _scrollToMid(mid);
+      });
+    }
 
     final authState = ref.watch(authControllerProvider).valueOrNull;
     final currentUid =
@@ -1028,7 +1043,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ) = _target.map(
       user: (t) {
         final u = userDir[t.uid];
-        final name = u?.name ?? l.chatUserFallback(t.uid);
+        final name = u?.name ?? widget.initialName ?? l.chatUserFallback(t.uid);
         return (
           name,
           showStatus

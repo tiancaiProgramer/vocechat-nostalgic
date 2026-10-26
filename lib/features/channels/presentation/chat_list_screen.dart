@@ -32,8 +32,6 @@ class ChatListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
-  final _searchCtrl = TextEditingController();
-  String _query = '';
   String? _selectedId;
 
   @override
@@ -45,12 +43,6 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       final id = m.group(1)!;
       if (_selectedId != id) _selectedId = id;
     }
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   @override
@@ -120,10 +112,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       ),
       child: Column(
         children: [
-          _ChatListHeader(
-            controller: _searchCtrl,
-            onChanged: (v) => setState(() => _query = v),
-          ),
+          const LegacyServerHeader(),
           Expanded(
             child: Stack(
               children: [
@@ -150,19 +139,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                               pinOrder.containsKey(c.key),
                         )
                         .toList();
-                    final lowerQuery = _query.toLowerCase();
-                    final filtered = lowerQuery.isEmpty
-                        ? visible
-                        : visible
-                            .where(
-                              (c) => c.name.toLowerCase().contains(lowerQuery),
-                            )
-                            .toList();
                     if (visible.isEmpty) {
                       return _EmptyState(message: l.chatListEmpty);
-                    }
-                    if (filtered.isEmpty) {
-                      return _EmptyState(message: l.chatListNoResults(_query));
                     }
 
                     // Partition filtered conversations into pinned + normal
@@ -171,7 +149,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     // ordering from `conversationsProvider`.
                     final pinned = <ConversationItem>[];
                     final normal = <ConversationItem>[];
-                    for (final c in filtered) {
+                    for (final c in visible) {
                       if (pinOrder.containsKey(c.key)) {
                         pinned.add(c);
                       } else {
@@ -706,30 +684,6 @@ class _PinnedSection extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // _ChatListHeader — pill search + add button (Figma's "Headers / Search").
 // ---------------------------------------------------------------------------
-
-class _ChatListHeader extends StatefulWidget {
-  const _ChatListHeader({required this.controller, required this.onChanged});
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  @override
-  State<_ChatListHeader> createState() => _ChatListHeaderState();
-}
-
-class _ChatListHeaderState extends State<_ChatListHeader> {
-  bool searching = false;
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        GestureDetector(
-            onLongPress: () => setState(() => searching = !searching),
-            child: LegacyServerHeader(
-                onSearch: () => setState(() => searching = !searching))),
-        if (searching)
-          LegacySearchField(
-              controller: widget.controller,
-              onChanged: widget.onChanged,
-              hint: AppL10n.of(context).chatListSearch),
-      ]);
-}
 
 // ---------------------------------------------------------------------------
 // _ConversationTile — Figma "List Item" with 40px avatar, status dot,

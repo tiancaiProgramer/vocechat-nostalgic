@@ -15,6 +15,8 @@ import '../../features/channels/presentation/channel_settings_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/messages/presentation/chat_screen.dart';
+import '../../features/search/presentation/contact_search_screen.dart';
+import '../../features/search/presentation/message_search_screen.dart';
 import '../storage/server_store.dart';
 import '../storage/account_store.dart';
 import '../recovery/app_recovery.dart';
@@ -269,9 +271,20 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
                 builder: (context, state) => const ChatListScreen(),
                 routes: [
                   GoRoute(
+                    path: 'people',
+                    builder: (context, state) => const ContactSearchScreen(),
+                  ),
+                  GoRoute(
+                    path: 'search',
+                    builder: (context, state) => const MessageSearchScreen(),
+                  ),
+                  GoRoute(
                     path: 'chat/:id',
                     builder: (context, state) =>
-                        ChatScreen(id: state.pathParameters['id']!),
+                        ChatScreen(id: state.pathParameters['id']!,
+                          initialMid: int.tryParse(state.uri.queryParameters['mid'] ?? ''),
+                          initialName: state.extra is Map && (state.extra as Map)['chatName'] is String
+                              ? (state.extra as Map)['chatName'] as String : null),
                     routes: [
                       GoRoute(
                         path: 'settings',

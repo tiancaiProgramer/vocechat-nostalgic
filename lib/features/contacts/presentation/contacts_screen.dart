@@ -70,14 +70,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                     child: Text(safeText(l.errorPrefix(e.toString()))),
                   ),
                   data: (allContacts) {
-                    final q = _query.toLowerCase();
+                    final q = _query.trim().toLowerCase();
                     final filtered = q.isEmpty
                         ? allContacts
                         : allContacts
                             .where(
-                              (c) =>
-                                  c.name.toLowerCase().contains(q) ||
-                                  c.email.toLowerCase().contains(q),
+                              (c) => c.matchesQuery(q),
                             )
                             .toList();
 

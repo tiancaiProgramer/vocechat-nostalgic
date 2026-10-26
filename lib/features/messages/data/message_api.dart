@@ -230,6 +230,13 @@ class MessageApi {
     MessageTarget target, {
     int? beforeMid,
     int limit = 30,
+  }) => getHistoryForSearch(target, beforeMid: beforeMid, limit: limit);
+
+  Future<List<ChatMessage>> getHistoryForSearch(
+    MessageTarget target, {
+    int? beforeMid,
+    int limit = 100,
+    CancelToken? cancelToken,
   }) async {
     final String path = target.map(
       user: (t) => '/api/user/${t.uid}/history',
@@ -244,6 +251,7 @@ class MessageApi {
     final resp = await _dio.get(
       path,
       queryParameters: queryParams,
+      cancelToken: cancelToken,
     );
     final list = resp.data as List<dynamic>;
     // Server returns oldest-first; the rest of the app (chat_controller,
@@ -315,7 +323,7 @@ class MessageApi {
 
   /// Bundles [mids] into a new server-side archive. Server contract:
   /// POST /api/resource/archive, body {"mid_list": [...]}, response is a bare
-  /// JSON string path like "2026/7/8/<uuid>" (Json<String>, not wrapped).
+  /// JSON string path like `2026/7/8/<uuid>` (`Json<String>`, not wrapped).
   /// Mirrors web's `createArchive` (src/app/services/message.ts).
   Future<String> createArchive(List<int> mids) async {
     final resp = await _dio.post(
@@ -346,7 +354,7 @@ class MessageApi {
   }
 
   /// Fetches the archive index for a forwarded-message card. Server contract:
-  /// GET /api/resource/archive?file_path=<path> -> Json<Archive>.
+  /// `GET /api/resource/archive?file_path=<path>` -> `Json<Archive>`.
   Future<Archive> getArchive(String filePath) async {
     final resp = await _dio.get(
       '/api/resource/archive',

@@ -1463,4 +1463,34 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get stickerSyncUnavailable => '同步暂不可用 · 本机收藏仍可使用';
+
+  @override
+  String get searchPeopleTitle => '查找联系人';
+
+  @override
+  String get searchPeopleHint => '名字、账号邮箱或用户 ID';
+
+  @override
+  String get searchPeopleEmpty => '未找到匹配的联系人';
+
+  @override
+  String get searchPeopleDisabled => '服务器已关闭用户查询，仍显示匹配的已有联系人。';
+
+  @override
+  String get searchPeopleUnavailable => '暂时无法查询服务器，仍显示匹配的已有联系人。';
+
+  @override
+  String get searchMessagesTitle => '搜索聊天记录';
+
+  @override
+  String get searchMessagesPrompt => '输入关键词搜索消息内容';
+
+  @override
+  String get searchMessagesMore => '继续搜索更早的消息';
+
+  @override
+  String get searchMessagesUnavailable => '部分聊天记录暂未加载，已保留当前结果，可点击重试继续搜索。';
+
+  @override
+  String get searchMessagesComplete => '已搜索全部可用聊天记录';
 }

@@ -2850,6 +2850,66 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'Sync unavailable · local stickers still work'**
   String get stickerSyncUnavailable;
+
+  /// No description provided for @searchPeopleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people'**
+  String get searchPeopleTitle;
+
+  /// No description provided for @searchPeopleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, account email or user ID'**
+  String get searchPeopleHint;
+
+  /// No description provided for @searchPeopleEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching people'**
+  String get searchPeopleEmpty;
+
+  /// No description provided for @searchPeopleDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has disabled user lookup. Matching known contacts are still shown.'**
+  String get searchPeopleDisabled;
+
+  /// No description provided for @searchPeopleUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to search the server. Matching known contacts are still shown.'**
+  String get searchPeopleUnavailable;
+
+  /// No description provided for @searchMessagesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search chat history'**
+  String get searchMessagesTitle;
+
+  /// No description provided for @searchMessagesPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a keyword to search message content'**
+  String get searchMessagesPrompt;
+
+  /// No description provided for @searchMessagesMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Search earlier messages'**
+  String get searchMessagesMore;
+
+  /// No description provided for @searchMessagesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Some history could not be loaded. Your current results are kept; tap Retry to continue.'**
+  String get searchMessagesUnavailable;
+
+  /// No description provided for @searchMessagesComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'All available history has been searched'**
+  String get searchMessagesComplete;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

@@ -1535,4 +1535,39 @@ class AppL10nFr extends AppL10n {
   @override
   String get stickerSyncUnavailable =>
       'Sync unavailable · local stickers still work';
+
+  @override
+  String get searchPeopleTitle => 'Find people';
+
+  @override
+  String get searchPeopleHint => 'Name, account email or user ID';
+
+  @override
+  String get searchPeopleEmpty => 'No matching people';
+
+  @override
+  String get searchPeopleDisabled =>
+      'The server has disabled user lookup. Matching known contacts are still shown.';
+
+  @override
+  String get searchPeopleUnavailable =>
+      'Unable to search the server. Matching known contacts are still shown.';
+
+  @override
+  String get searchMessagesTitle => 'Search chat history';
+
+  @override
+  String get searchMessagesPrompt =>
+      'Enter a keyword to search message content';
+
+  @override
+  String get searchMessagesMore => 'Search earlier messages';
+
+  @override
+  String get searchMessagesUnavailable =>
+      'Some history could not be loaded. Your current results are kept; tap Retry to continue.';
+
+  @override
+  String get searchMessagesComplete =>
+      'All available history has been searched';
 }

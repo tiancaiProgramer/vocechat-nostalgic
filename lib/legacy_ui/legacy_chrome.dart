@@ -82,16 +82,19 @@ class LegacySearchField extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.hint,
+    this.autofocus = false,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final String hint;
+  final bool autofocus;
   @override
   Widget build(BuildContext context) => Container(
         color: Theme.of(context).appBarTheme.backgroundColor,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: CupertinoSearchTextField(
           controller: controller,
+          autofocus: autofocus,
           onChanged: onChanged,
           placeholder: hint,
           style: TextStyle(fontSize: 16, color: AppTokens.gray700),
@@ -102,8 +105,7 @@ class LegacySearchField extends StatelessWidget {
 }
 
 class LegacyServerHeader extends ConsumerWidget {
-  const LegacyServerHeader({super.key, this.onSearch});
-  final VoidCallback? onSearch;
+  const LegacyServerHeader({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(serverStoreProvider).valueOrNull;
@@ -130,17 +132,17 @@ class LegacyServerHeader extends ConsumerWidget {
         icon: Icon(AppIcons.add, size: 24, color: AppTokens.zinc500),
         onSelected: (value) {
           if (value == 'search') {
-            onSearch?.call();
-          } else if (value == 'group')
+            context.push('/home/search');
+          } else if (value == 'group') {
             showCreateChannelDialog(context);
-          else
-            context.go('/home/contacts');
+          } else {
+            context.push('/home/people');
+          }
         },
         itemBuilder: (_) => [
           PopupMenuItem(value: 'group', child: Text(l.chatListNewChat)),
           PopupMenuItem(value: 'dm', child: Text(l.navContacts)),
-          if (onSearch != null)
-            PopupMenuItem(value: 'search', child: Text(l.actionSearch)),
+          PopupMenuItem(value: 'search', child: Text(l.actionSearch)),
         ],
       ),
     );

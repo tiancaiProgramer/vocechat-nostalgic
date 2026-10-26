@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33+3112
+版本：0.3.33+3113
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,7 +18,7 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3112。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3113。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
@@ -85,3 +85,10 @@ HTTP事件流禁用压缩缓冲，支持分片UTF-8、多行data及event字段�
 3112：本地恢复页和首页使用无额外过渡的根页面，避免系统打开动画后再执行一次首页缩放。聊天页面原有导航过渡保留。
 Windows 构建已使用 Flutter 3.35.7 / Dart 3.9.2、JDK17、SDK36、NDK27.0.12077973、Gradle8.14.3完成。建议构建目录使用无中文路径；启用桌面平台构建时需满足 Windows 符号链接权限要求。
 本次路由、冷启动及登录恢复27项测试通过。Release证书与原正式版一致，包名、版本、非debug属性、ARM64、ZIP完整性和16KiB ZIP对齐均已核验。3112已保留数据覆盖安装并录屏确认重复启动缩放消除。
+
+3113：修复“+ → 联系人”入口，独立页面支持名字、账号邮箱和用户ID查询；
+“+ → 搜索”改为独立聊天记录页面，搜索文字/Markdown正文，支持继续搜索更早记录、跳转并高亮消息。
+新功能13项测试和相关静态检查通过，扩展回归79项通过；5项既有相机/表情测试在3112基线同样失败。
+3113已在Android手机上保留数据覆盖安装，实机核对联系人查询、原会话与文字/图片历史、
+中英文聊天内容搜索、结果定位高亮及返回保留结果。未发送测试消息，临时UI辅助程序已移除。
+ARM64 Release包签名与原版一致，完整性和16KiB ZIP对齐检查通过。

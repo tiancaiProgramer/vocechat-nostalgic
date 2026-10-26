@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../../../core/storage/account_store.dart';
 
 part 'contacts_provider.g.dart';
 
@@ -21,6 +22,12 @@ class ContactInfo {
   final String name;
   final String email;
 
+  bool matchesQuery(String query) {
+    final q = query.trim().toLowerCase();
+    return q.isEmpty || name.toLowerCase().contains(q) ||
+        email.toLowerCase().contains(q) || uid.toString() == q.replaceFirst(RegExp(r'^#'), '');
+  }
+
   factory ContactInfo.fromJson(Map<String, dynamic> j) => ContactInfo(
         uid: (j['uid'] as num).toInt(),
         name: j['name'] as String? ?? 'Unknown',
@@ -34,6 +41,7 @@ class ContactInfo {
 
 @riverpod
 Future<List<ContactInfo>> contacts(Ref ref) async {
+  ref.watch(accountStoreProvider.select((s) => s.valueOrNull?.currentAccountId));
   final dio = ref.watch(dioProvider);
 
   try {

@@ -504,5 +504,15 @@
   "stickerSyncing": "正在同步表情",
   "stickerSynced": "已与服务器同步",
   "stickerSyncPending": "已保存在本机 · 待同步，点云朵重试",
-  "stickerSyncUnavailable": "同步暂不可用 · 本机收藏仍可使用"
+  "stickerSyncUnavailable": "同步暂不可用 · 本机收藏仍可使用",
+  "searchPeopleTitle": "查找联系人",
+  "searchPeopleHint": "名字、账号邮箱或用户 ID",
+  "searchPeopleEmpty": "未找到匹配的联系人",
+  "searchPeopleDisabled": "服务器已关闭用户查询，仍显示匹配的已有联系人。",
+  "searchPeopleUnavailable": "暂时无法查询服务器，仍显示匹配的已有联系人。",
+  "searchMessagesTitle": "搜索聊天记录",
+  "searchMessagesPrompt": "输入关键词搜索消息内容",
+  "searchMessagesMore": "继续搜索更早的消息",
+  "searchMessagesUnavailable": "部分聊天记录暂未加载，已保留当前结果，可点击重试继续搜索。",
+  "searchMessagesComplete": "已搜索全部可用聊天记录"
 }
