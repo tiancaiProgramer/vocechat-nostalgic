@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33+3119
+版本：0.3.33-r1+3122（显示版本 0.3.33-r1，内部构建号 3122）
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,12 +18,14 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3119。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33-r1 / 3122。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
 5. flutter test --no-pub
 6. Android 原生测试：在android目录运行 ./gradlew :app:testStandaloneDebugUnitTest
+
+后续交付使用-r2、-r3依次递增，内部构建号继续递增以便覆盖升级。版本填写和文件命名见docs/versioning.md。
 
 通话端到端验证需要可用的Agora配置、服务端及两端账号；自动测试不代表实际通话已验证。
 Avo实时互动需要服务端支持 /api/user/avo 和 /api/voice/avo/events_ws。

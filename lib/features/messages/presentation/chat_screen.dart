@@ -3,6 +3,7 @@ import '../../../core/background/background_lifecycle.dart';
 import '../../../core/background/background_preferences.dart';
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
@@ -3354,6 +3355,8 @@ class _SendBox extends StatelessWidget {
                 const SizedBox(width: 8),
                 _SendIcon(
                   icon: Icons.attach_file,
+                  size: 21.6,
+                  rotation: -25 * math.pi / 180,
                   tooltip: AppL10n.of(context).chatAttach,
                   onTap: onAttach,
                 ),
@@ -3425,6 +3428,8 @@ class _SendBox extends StatelessWidget {
                   const SizedBox(width: 8),
                   _SendIcon(
                     icon: Icons.mic_none,
+                    size: 23.3,
+                    offset: const Offset(0, 0.5),
                     tooltip: l.chatVoiceMessage,
                     onTap: onRecordVoice,
                   ),
@@ -4489,14 +4494,32 @@ class _EditForm extends StatelessWidget {
 // Flat gray icon used inside the send pill. No ripple box, tight hit area
 // (28px) so the icons sit close together like the web toolbar.
 class _SendIcon extends StatelessWidget {
-  const _SendIcon({required this.icon, required this.tooltip, this.onTap});
+  const _SendIcon({
+    required this.icon,
+    required this.tooltip,
+    this.onTap,
+    this.size = 22,
+    this.rotation = 0,
+    this.offset = Offset.zero,
+  });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
+  final double size;
+  final double rotation;
+  final Offset offset;
   @override
   Widget build(BuildContext context) {
-    final iconWidget = Icon(icon, size: 22, color: AppTokens.gray800);
+    // Match visible glyph heights while keeping every button centered in the
+    // same 24dp box; Material icons have different built-in vertical padding.
+    final iconWidget = Transform.translate(
+      offset: offset,
+      child: Transform.rotate(
+        angle: rotation,
+        child: Icon(icon, size: size, color: AppTokens.gray800),
+      ),
+    );
     return Tooltip(
       message: tooltip,
       child: InkResponse(

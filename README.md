@@ -2,13 +2,23 @@
 
 新版 VoceChat 功能底座，保留旧版 Android 页面风格。
 
-当前版本：**0.3.33+3119（预发布，部分真机未验证）**。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
+当前版本：**0.3.33-r1**（内部构建号 3122，预发布）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
+
+后续对外版本使用 `-r2`、`-r3` 依次递增，内部构建号继续递增；见[版本命名规则](docs/versioning.md)。
 
 ## 安装
 
-从 [3119预发布](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.33-3119) 下载 ARM64 APK；[发布说明](docs/releases/3119.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
+从 [r1预发布](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.33-r1) 下载 ARM64 APK；[发布说明](docs/releases/0.3.33-r1.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
 
 此应用可与原版共存；升级已安装的怀旧版会保留应用数据。设备会话已被服务器拒绝时，需要在应用内重新登录一次。
+
+## 0.3.33-r1 更新（2026-10-29，预发布）
+
+- 输入栏的表情、回形针、语音图标按可见高度对齐；回形针轻微倾斜。
+- 聊天列表右上角加号菜单依次为“文件传输 → 新建聊天 → 联系人 → 搜索”。
+- 对外版本改用 `0.3.33-r1`，后续按 `-r2`、`-r3` 递增，内部构建号继续递增。
+
+3120、3121 的界面调整已在手机核对；r1 已用原签名保留数据覆盖安装，版本名为 `0.3.33-r1`。3119 底座还已实机核对原登录与所检查历史记录、草稿恢复、搜索筛选、真实安卓 HEVC 动态照片预览，以及电脑到手机的合成文件快传。手机到电脑测试端的 TCP 连接超时，双向快传尚未通过；其他未验证项目详见发布说明。
 
 ## 3119 更新（2026-10-29，预发布）
 

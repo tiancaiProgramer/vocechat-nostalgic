@@ -143,11 +143,11 @@ class LegacyServerHeader extends ConsumerWidget {
           }
         },
         itemBuilder: (_) => [
+          if (isAndroidBackgroundSupported)
+            PopupMenuItem(value: 'transfer', child: Text(l.localTransferTitle)),
           PopupMenuItem(value: 'group', child: Text(l.chatListNewChat)),
           PopupMenuItem(value: 'dm', child: Text(l.navContacts)),
           PopupMenuItem(value: 'search', child: Text(l.actionSearch)),
-          if (isAndroidBackgroundSupported)
-            PopupMenuItem(value: 'transfer', child: Text(l.localTransferTitle)),
         ],
       ),
     );
