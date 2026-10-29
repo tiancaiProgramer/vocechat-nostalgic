@@ -60,6 +60,7 @@ void main() {
       addTearDown(() => server.close(force: true));
       final requests = <String>[];
       var rejectSession = false;
+      var organizationName = 'Initial server name';
       server.listen((request) async {
         requests.add(request.uri.path);
         if (rejectSession &&
@@ -73,7 +74,7 @@ void main() {
         switch (request.uri.path) {
           case '/api/admin/system/organization':
             // The real server has a separate UUID in organization config.
-            body = {'server_id': 'org-instance-uuid'};
+            body = {'server_id': 'org-instance-uuid', 'name': organizationName};
           case '/api/token/login':
             body = {
               'server_id': 'server',
@@ -121,6 +122,7 @@ void main() {
       };
       SharedPreferences.setMockInitialValues(savedPreferences);
 
+      organizationName = 'KGN';
       final restarted = ProviderContainer();
       addTearDown(restarted.dispose);
       restarted.listen(authControllerProvider, (_, __) {});
@@ -128,6 +130,14 @@ void main() {
       expect(await restarted.read(authControllerProvider.future),
           isA<AuthStateAuthenticated>());
       await restarted.read(authControllerProvider.notifier).startupValidation;
+      expect(
+          restarted.read(serverStoreProvider).requireValue.servers.single.name,
+          'KGN');
+      expect(restarted.read(serverStoreProvider).requireValue.currentServerId,
+          'server');
+      final saved = (await SharedPreferences.getInstance())
+          .getStringList('voce_servers')!;
+      expect(jsonDecode(saved.single)['name'], 'KGN');
       final remembered = await restarted
           .read(secureTokenStoreProvider('server'))
           .readRememberedCredential();

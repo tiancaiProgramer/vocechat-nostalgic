@@ -1683,4 +1683,158 @@ class AppL10nJa extends AppL10n {
   @override
   String get fcmUnregisterFailed =>
       'FCM registration has not been removed. Check the VC connection and retry.';
+
+  @override
+  String get localTransferTitle => 'File transfer';
+
+  @override
+  String get localTransferQuick => 'Quick transfer';
+
+  @override
+  String get localTransferDescription =>
+      'Transfer directly over your local network. Both devices need this page open. Files stay between the two devices.';
+
+  @override
+  String get localTransferMyDevice => 'This device';
+
+  @override
+  String get localTransferCopyConnection => 'Copy connection information';
+
+  @override
+  String get localTransferCopied => 'Connection information copied';
+
+  @override
+  String get localTransferAddDevice => 'Add device';
+
+  @override
+  String get localTransferConnectionHint =>
+      'Paste the other device’s connection information';
+
+  @override
+  String get localTransferConnectionInvalid =>
+      'Invalid connection information. Copy it from the other device’s file-transfer page.';
+
+  @override
+  String get localTransferNearby => 'Nearby devices';
+
+  @override
+  String get localTransferNearbyHint =>
+      'Open File transfer on both devices and connect them to the same Wi-Fi. If discovery is blocked, add the other device using its connection information.';
+
+  @override
+  String get localTransferNoDevices => 'Looking for nearby devices…';
+
+  @override
+  String get localTransferSelected => 'Files to send';
+
+  @override
+  String get localTransferChooseFiles => 'Choose files';
+
+  @override
+  String get localTransferChooseHint =>
+      'Choose up to 16 files, then tap Send beside a nearby device.';
+
+  @override
+  String get localTransferIncoming => 'Incoming transfer';
+
+  @override
+  String get localTransferCode => 'Verification code';
+
+  @override
+  String get localTransferCompareCode =>
+      'Check that this code matches on both devices before accepting.';
+
+  @override
+  String get localTransferAccept => 'Accept';
+
+  @override
+  String get localTransferReject => 'Decline';
+
+  @override
+  String get localTransferReady => 'Ready';
+
+  @override
+  String get localTransferPreparing => 'Checking files…';
+
+  @override
+  String get localTransferWaiting => 'Waiting for confirmation…';
+
+  @override
+  String get localTransferSending => 'Sending…';
+
+  @override
+  String get localTransferReceiving => 'Receiving…';
+
+  @override
+  String get localTransferVerifying => 'Verifying file…';
+
+  @override
+  String get localTransferCompleted => 'Transfer complete';
+
+  @override
+  String get localTransferFailed => 'Transfer failed';
+
+  @override
+  String get localTransferCancelled => 'Transfer cancelled';
+
+  @override
+  String get localTransferRejected =>
+      'The other device declined or did not confirm.';
+
+  @override
+  String get localTransferBusy => 'The other device is busy. Try again later.';
+
+  @override
+  String get localTransferIntegrityError =>
+      'File verification failed. Please send it again.';
+
+  @override
+  String get localTransferFileError =>
+      'Cannot read or save the file. Check storage space and choose up to 16 files.';
+
+  @override
+  String get localTransferTimeout =>
+      'The connection timed out. Check that both devices are still connected.';
+
+  @override
+  String get localTransferNetworkError =>
+      'Cannot connect. Check Wi-Fi, VPN local-network access, and router device isolation.';
+
+  @override
+  String get localTransferReceived => 'Received on this device';
+
+  @override
+  String get localTransferSave => 'Save to device';
+
+  @override
+  String get localTransferLeaveTitle => 'Stop this transfer?';
+
+  @override
+  String get localTransferLeaveBody =>
+      'Leaving this page cancels the current transfer. You can keep the app in the background while transferring.';
+
+  @override
+  String get localTransferStopAndLeave => 'Stop and leave';
+
+  @override
+  String get livePhotoLabel => 'Live Photo';
+
+  @override
+  String get livePhotoRetry => 'Retry Live Photo';
+
+  @override
+  String get livePhotoSound => 'Toggle Live Photo sound';
+
+  @override
+  String get livePhotoPairTitle => 'Import Live Photos';
+
+  @override
+  String get livePhotoPairBody =>
+      'Matching photos and MOV videos were selected. Combine each pair into one Live Photo?';
+
+  @override
+  String get livePhotoPairMerge => 'Combine';
+
+  @override
+  String get livePhotoPairSeparate => 'Keep separate';
 }

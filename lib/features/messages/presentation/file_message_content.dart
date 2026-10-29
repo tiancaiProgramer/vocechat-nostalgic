@@ -23,6 +23,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/safe_text.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import 'file_display_utils.dart';
+import 'motion_photo_overlay.dart';
 
 /// Renders a `vocechat/file` attachment or a `vocechat/audio` voice message.
 ///
@@ -101,7 +102,9 @@ class FileMessageContent extends ConsumerWidget {
     }
 
     // Optimistic local image: render directly from memory (no server URL yet).
-    if (localBytes != null && _isImage(parsed.contentType, parsed.size)) {
+    if (localBytes != null &&
+        _isImage(parsed.contentType, parsed.size,
+            motionPhoto: parsed.motionPhoto)) {
       return _LocalImageBubble(
         bytes: localBytes!,
         meta: parsed,
@@ -112,14 +115,19 @@ class FileMessageContent extends ConsumerWidget {
 
     // Local files (including failed uploads) have no downloadable resource.
     if (parsed.path.startsWith('local:')) {
-      return _FileCard(meta: parsed, urls: null);
+      return _FileCard(
+        meta: parsed,
+        urls: null,
+        progress: sending ? progress : null,
+      );
     }
     final urls = _buildResourceUrls(ref, parsed.path);
     if (urls == null) {
       return _FileCard(meta: parsed, urls: null);
     }
 
-    if (_isImage(parsed.contentType, parsed.size)) {
+    if (_isImage(parsed.contentType, parsed.size,
+        motionPhoto: parsed.motionPhoto)) {
       return _ImageBubble(
         key: ValueKey((urls.originCacheKey, cacheMedia)),
         meta: parsed,
@@ -151,6 +159,7 @@ class _FileMeta {
     required this.size,
     required this.width,
     required this.height,
+    this.motionPhoto = false,
   });
 
   final String path;
@@ -159,6 +168,7 @@ class _FileMeta {
   final int size;
   final double? width;
   final double? height;
+  final bool motionPhoto;
 }
 
 _FileMeta? _parseFileMessage(String content, Map<String, dynamic>? props) {
@@ -185,6 +195,7 @@ _FileMeta? _parseFileMessage(String content, Map<String, dynamic>? props) {
     size: (p['size'] as num?)?.toInt() ?? 0,
     width: (p['width'] as num?)?.toDouble(),
     height: (p['height'] as num?)?.toDouble(),
+    motionPhoto: p['motion_photo'] == true,
   );
 }
 
@@ -276,11 +287,11 @@ Future<bool> _resourceConfirmedMissing(WidgetRef ref, String url) async {
   }
 }
 
-bool _isImage(String contentType, int size) {
+bool _isImage(String contentType, int size, {bool motionPhoto = false}) {
   if (contentType.isEmpty) return false;
   if (contentType == 'image/x-sony-arw') return false;
   if (!contentType.startsWith('image')) return false;
-  const fileImageSize = 10 * 1024 * 1024;
+  final fileImageSize = (motionPhoto ? 64 : 10) * 1024 * 1024;
   if (size > fileImageSize) return false;
   return true;
 }
@@ -300,7 +311,7 @@ String _formatDuration(Duration d) {
 /// Matches _ImageBubble's sizing so optimistic → confirmed has no layout jump.
 (double, double) _imageBubbleSize(double? natW, double? natH) {
   const minSize = 80.0;
-  const maxSize = 240.0;
+  const maxSize = 180.0;
   double bubbleW = maxSize;
   double bubbleH = maxSize;
   if (natW != null && natH != null && natW > 0 && natH > 0) {
@@ -467,10 +478,27 @@ class _ImageBubbleState extends ConsumerState<_ImageBubble> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          width: bubbleW,
-          height: bubbleH,
-          child: image,
-        ),
+            width: bubbleW,
+            height: bubbleH,
+            child: Stack(fit: StackFit.expand, children: [
+              image,
+              if (widget.meta.motionPhoto)
+                const Positioned(
+                    left: 6,
+                    bottom: 6,
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.all(Radius.circular(4))),
+                        child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            child: Text('LIVE',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600))))),
+            ])),
       ),
     );
   }
@@ -506,6 +534,7 @@ class _ImageBubbleState extends ConsumerState<_ImageBubble> {
         fullscreenDialog: true,
         builder: (_) => ImagePreviewScreen(
           originUrl: widget.urls.origin,
+          motionPhotoHint: widget.meta.motionPhoto,
           cacheKey: widget.cacheMedia ? widget.urls.originCacheKey : null,
           cacheMedia: widget.cacheMedia,
           downloadUrl: widget.urls.download,
@@ -525,6 +554,7 @@ class ImagePreviewScreen extends StatefulWidget {
   const ImagePreviewScreen({
     super.key,
     required this.originUrl,
+    this.motionPhotoHint = false,
     this.cacheKey,
     this.cacheMedia = true,
     required this.downloadUrl,
@@ -533,6 +563,7 @@ class ImagePreviewScreen extends StatefulWidget {
   });
 
   final String originUrl;
+  final bool motionPhotoHint;
   final String? cacheKey;
   final bool cacheMedia;
   final String downloadUrl;
@@ -617,6 +648,15 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
               ),
             ),
           ),
+          if (!kIsWeb)
+            Positioned.fill(
+                child: MotionPhotoOverlay(
+              originUrl: widget.originUrl,
+              headers: widget.headers,
+              cacheKey: widget.cacheKey,
+              cacheMedia: widget.cacheMedia,
+              hint: widget.motionPhotoHint,
+            )),
           // Top toolbar (web lightbox parity: download / zoom-in / zoom-out /
           // fullscreen / close, right-aligned)
           if (!_isFullscreen)
@@ -912,8 +952,8 @@ class _VideoBubbleState extends ConsumerState<_VideoBubble> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: SizedBox(
-            width: 280,
-            height: 158,
+            width: 200,
+            height: 113,
             child: Stack(
               fit: StackFit.expand,
               alignment: Alignment.center,
@@ -982,7 +1022,7 @@ class _VideoBubbleState extends ConsumerState<_VideoBubble> {
                           color: Colors.white,
                           fontSize: 11,
                           shadows: [
-                            Shadow(color: Colors.black54, blurRadius: 6)
+                            Shadow(color: Colors.black54, blurRadius: 6),
                           ],
                         ),
                       ),
@@ -1009,7 +1049,7 @@ class _VideoBubbleState extends ConsumerState<_VideoBubble> {
                             color: Colors.white,
                             fontSize: 11,
                             shadows: [
-                              Shadow(color: Colors.black54, blurRadius: 6)
+                              Shadow(color: Colors.black54, blurRadius: 6),
                             ],
                           ),
                         ),
@@ -1021,9 +1061,7 @@ class _VideoBubbleState extends ConsumerState<_VideoBubble> {
                     Icons.play_arrow,
                     color: Colors.white,
                     size: 40,
-                    shadows: [
-                      Shadow(color: Colors.black54, blurRadius: 6),
-                    ],
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 6)],
                   ),
               ],
             ),
@@ -1255,8 +1293,10 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen>
                 OutlinedButton.icon(
                   onPressed: _init,
                   icon: const Icon(Icons.refresh, color: Colors.white),
-                  label: Text(l.actionRetry,
-                      style: const TextStyle(color: Colors.white)),
+                  label: Text(
+                    l.actionRetry,
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.white54),
                   ),
@@ -1268,8 +1308,11 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline,
-                      color: Colors.white54, size: 48),
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.white54,
+                    size: 48,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     l.mediaLikelyIncompatible,
@@ -1279,10 +1322,14 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen>
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _download,
-                    icon: const Icon(Icons.download_outlined,
-                        color: Colors.white),
-                    label: Text(l.tooltipDownload,
-                        style: const TextStyle(color: Colors.white)),
+                    icon: const Icon(
+                      Icons.download_outlined,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      l.tooltipDownload,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.white54),
                     ),
@@ -1290,8 +1337,9 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen>
                 ],
               ),
             ),
-          _MediaLoadStatus.loading =>
-            const CircularProgressIndicator(color: Colors.white),
+          _MediaLoadStatus.loading => const CircularProgressIndicator(
+              color: Colors.white,
+            ),
           _MediaLoadStatus.ready => Chewie(controller: _chewieCtrl!),
         },
       ),
@@ -1365,21 +1413,13 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
       if (!mounted) return;
       late final AudioSource source;
       if (kIsWeb || !widget.cacheMedia) {
-        source = AudioSource.uri(
-          Uri.parse(urls.origin),
-          headers: headers,
-        );
+        source = AudioSource.uri(Uri.parse(urls.origin), headers: headers);
       } else {
-        final cacheFile = await MediaCache.audioFileForKey(
-          urls.originCacheKey,
-        );
+        final cacheFile = await MediaCache.audioFileForKey(urls.originCacheKey);
         if (!mounted) return;
         final readerToken = MediaCache.claimAudioCacheReader(cacheFile.path);
         if (readerToken == null) {
-          source = AudioSource.uri(
-            Uri.parse(urls.origin),
-            headers: headers,
-          );
+          source = AudioSource.uri(Uri.parse(urls.origin), headers: headers);
         } else {
           _audioCachePath = cacheFile.path;
           _audioCacheReaderToken = readerToken;
@@ -1390,10 +1430,7 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
           // Stream this player directly so both sources never truncate the
           // same `.part` file.
           _releaseAudioCacheReader();
-          source = AudioSource.uri(
-            Uri.parse(urls.origin),
-            headers: headers,
-          );
+          source = AudioSource.uri(Uri.parse(urls.origin), headers: headers);
         } else if (writerToken != null) {
           writerPath = cacheFile.path;
           final cacheSource = LockCachingAudioSource(
@@ -1404,8 +1441,9 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
           unawaited(
             MediaCache.monitorAudioCacheWriter(cacheFile.path, writerToken),
           );
-          _cacheProgressSub =
-              cacheSource.downloadProgressStream.listen((value) {
+          _cacheProgressSub = cacheSource.downloadProgressStream.listen((
+            value,
+          ) {
             if (value >= 1) unawaited(MediaCache.trimAudioCache());
           });
           // Keep the caching source even on a completed hit so its MIME
@@ -1413,9 +1451,7 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
           source = cacheSource;
         }
       }
-      final dur = await _player.setAudioSource(
-        source,
-      );
+      final dur = await _player.setAudioSource(source);
       if (!mounted) return;
       _markReady(dur);
     } catch (_) {
@@ -1428,10 +1464,7 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
       if (writerPath != null && resolvedHeaders != null && mounted) {
         try {
           final dur = await _player.setAudioSource(
-            AudioSource.uri(
-              Uri.parse(urls.origin),
-              headers: resolvedHeaders,
-            ),
+            AudioSource.uri(Uri.parse(urls.origin), headers: resolvedHeaders),
           );
           if (!mounted) return;
           _markReady(dur);
@@ -1580,10 +1613,12 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 2,
-                    overlayShape:
-                        const RoundSliderOverlayShape(overlayRadius: 12),
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 12,
+                    ),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
                     activeTrackColor: AppTokens.primary500,
                     inactiveTrackColor: AppTokens.gray200,
                     thumbColor: AppTokens.primary500,
@@ -1591,9 +1626,10 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
                   child: Slider(
                     value: total.inMilliseconds == 0
                         ? 0
-                        : pos.inMilliseconds
-                            .toDouble()
-                            .clamp(0, total.inMilliseconds.toDouble()),
+                        : pos.inMilliseconds.toDouble().clamp(
+                              0,
+                              total.inMilliseconds.toDouble(),
+                            ),
                     max: total.inMilliseconds == 0
                         ? 1
                         : total.inMilliseconds.toDouble(),
@@ -1629,10 +1665,12 @@ class _AudioBubbleState extends ConsumerState<_AudioBubble>
 // ---------------------------------------------------------------------------
 
 class _FileCard extends StatelessWidget {
-  const _FileCard({required this.meta, required this.urls});
+  const _FileCard({required this.meta, required this.urls, this.progress});
 
   final _FileMeta meta;
   final _ResourceUrls? urls;
+
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -1671,15 +1709,16 @@ class _FileCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     sizeLabel,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTokens.gray500,
-                    ),
+                    style: TextStyle(fontSize: 11, color: AppTokens.gray500),
                   ),
                 ],
               ],
             ),
           ),
+          if (progress != null) ...[
+            const SizedBox(width: 8),
+            Text('${(progress! * 100).floor()}%'),
+          ],
           if (canDownload)
             IconButton(
               tooltip: AppL10n.of(context).tooltipDownload,
@@ -1767,10 +1806,7 @@ class _ExpiredCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   spec.$3,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppTokens.gray500,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppTokens.gray500),
                 ),
                 if (name.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -1778,10 +1814,7 @@ class _ExpiredCard extends StatelessWidget {
                     safeText(name),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTokens.gray400,
-                    ),
+                    style: TextStyle(fontSize: 11, color: AppTokens.gray400),
                   ),
                 ],
               ],

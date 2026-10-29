@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 // ignore: depend_on_referenced_packages
@@ -21,6 +22,7 @@ import 'package:vocechat_client/features/messages/application/chat_controller.da
 import 'package:vocechat_client/features/messages/application/read_index_provider.dart';
 import 'package:vocechat_client/features/messages/domain/message_models.dart';
 import 'package:vocechat_client/features/messages/presentation/chat_header_details.dart';
+import 'package:vocechat_client/features/messages/data/motion_photo.dart';
 import 'package:vocechat_client/features/messages/presentation/chat_screen.dart';
 import 'package:vocechat_client/features/messages/presentation/composer_emoji_picker.dart';
 import 'package:vocechat_client/features/messages/presentation/pinned_message_bar.dart';
@@ -129,6 +131,15 @@ class _Chat extends ChatController {
       required String filename,
       String? contentType}) async {
     sentStickers.add((bytes, filename, contentType));
+  }
+
+  final sentDiskFiles = <(String, String)>[];
+  @override
+  Future<void> sendFile(
+      {required File file,
+      required String filename,
+      String? contentType}) async {
+    sentDiskFiles.add((file.path, filename));
   }
 
   ChatMessage message(int mid) => ChatMessage(
@@ -386,6 +397,119 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('150 MB APK stages a disk path and sends without picker bytes',
+      (tester) async {
+    final dir = Directory.systemTemp.createTempSync('vc-picker-large-');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/test.apk');
+    final handle = file.openSync(mode: FileMode.write);
+    handle.truncateSync(150 * 1024 * 1024);
+    handle.closeSync();
+    FilePickerIO.registerWith();
+    final original = FilePicker.platform;
+    FilePicker.platform = FilePickerIO();
+    addTearDown(() => FilePicker.platform = original);
+    const channel = MethodChannel(
+        'miguelruivo.flutter.plugins.filepicker', JSONMethodCodec());
+    var pickerCalled = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      pickerCalled = true;
+      expect((call.arguments as Map)['withData'], isFalse);
+      return [
+        {'path': file.path, 'name': 'test.apk', 'size': file.lengthSync()}
+      ];
+    });
+    addTearDown(() => TestDefaultBinaryMessengerBinding
+        .instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    final container = await pumpChat(tester);
+    await setupCamera();
+    await tester.tap(find.byTooltip('Attach').first);
+    await tester.pumpAndSettle();
+    final quick = find.byKey(const ValueKey('attachment-quick-transfer'));
+    expect(quick, findsOneWidget);
+    expect(tester.getCenter(quick).dx,
+        lessThan(tester.getCenter(find.text('Files')).dx));
+    await tester.tap(find.text('Files'));
+    for (var i = 0; i < 100 && find.text('test.apk').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+    expect(pickerCalled, isTrue);
+    expect(find.text('150.0 MB'), findsOneWidget);
+    final controller =
+        container.read(chatControllerProvider(_target).notifier) as _Chat;
+    expect(controller.sentDiskFiles, isEmpty);
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    expect(controller.sentDiskFiles, [(file.path, 'test.apk')]);
+    expect(controller.sentStickers, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final merge in [true, false]) {
+    testWidgets('matching JPEG/MOV pair requires user choice (merge=$merge)',
+        (tester) async {
+      FilePickerIO.registerWith();
+      final original = FilePicker.platform;
+      FilePicker.platform = FilePickerIO();
+      addTearDown(() => FilePicker.platform = original);
+      final photo = File('test/fixtures/live_photos/still.jpg').absolute;
+      final movie = File('test/fixtures/live_photos/paired.mov').absolute;
+      const channel = MethodChannel(
+          'miguelruivo.flutter.plugins.filepicker', JSONMethodCodec());
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              channel,
+              (_) async => [
+                    {
+                      'path': photo.path,
+                      'name': 'IMG_1234.JPG',
+                      'size': photo.lengthSync()
+                    },
+                    {
+                      'path': movie.path,
+                      'name': 'IMG_1234.MOV',
+                      'size': movie.lengthSync()
+                    },
+                  ]);
+      addTearDown(() => TestDefaultBinaryMessengerBinding
+          .instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null));
+      final container = await pumpChat(tester);
+      await setupCamera();
+      await tester.tap(find.byTooltip('Attach').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Files'));
+      await flushIo(
+          tester, () => find.text('Import Live Photos').evaluate().isNotEmpty);
+      final controller =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(controller.sentStickers, isEmpty);
+      await tester.tap(find.text(merge ? 'Combine' : 'Keep separate'));
+      await flushIo(
+          tester,
+          () => find
+              .text(merge ? 'IMG_1234_MP.jpg' : 'IMG_1234.JPG')
+              .evaluate()
+              .isNotEmpty);
+      if (!merge)
+        await flushIo(
+            tester, () => find.text('IMG_1234.MOV').evaluate().isNotEmpty);
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      expect(controller.sentStickers, hasLength(1));
+      expect(
+          MotionPhoto.inspectBytes(controller.sentStickers.single.$1) != null,
+          merge);
+      expect(controller.sentDiskFiles.length, merge ? 0 : 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
       'composer removes Markdown and its extra menu and sends ordinary text',
       (tester) async {
@@ -395,6 +519,9 @@ void main() {
             of: find.byKey(const ValueKey('chat-composer')),
             matching: find.byTooltip('More')),
         findsNothing);
+    expect(find.byTooltip('Attach'), findsOneWidget);
+    expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    expect(find.byIcon(Icons.folder), findsNothing);
     expect(find.text('Markdown'), findsNothing);
     expect(find.text('Video message'), findsNothing);
     await tester.enterText(find.byType(TextField), '**plain text**');

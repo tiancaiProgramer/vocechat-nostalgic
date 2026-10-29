@@ -435,6 +435,17 @@ class AuthController extends _$AuthController {
       final body =
           await ref.read(serverConnectionProvider).organizationForAuth(baseUrl);
       _requireSession(generation);
+      final name = body['name'];
+      if (name is String) {
+        // Optional display metadata must not bypass the identity comparison
+        // below if local storage is temporarily unavailable.
+        try {
+          await ref
+              .read(serverStoreProvider.notifier)
+              .updateServerName(config.id, baseUrl, name);
+        } catch (_) {}
+        _requireSession(generation);
+      }
       final value = body['server_id'];
       final remoteId = value is String ? value.trim() : null;
       // Old servers/databases may return null. Keep their existing behavior.

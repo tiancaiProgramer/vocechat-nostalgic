@@ -3144,6 +3144,288 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'FCM registration has not been removed. Check the VC connection and retry.'**
   String get fcmUnregisterFailed;
+
+  /// No description provided for @localTransferTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'File transfer'**
+  String get localTransferTitle;
+
+  /// No description provided for @localTransferQuick.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick transfer'**
+  String get localTransferQuick;
+
+  /// No description provided for @localTransferDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer directly over your local network. Both devices need this page open. Files stay between the two devices.'**
+  String get localTransferDescription;
+
+  /// No description provided for @localTransferMyDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get localTransferMyDevice;
+
+  /// No description provided for @localTransferCopyConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy connection information'**
+  String get localTransferCopyConnection;
+
+  /// No description provided for @localTransferCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection information copied'**
+  String get localTransferCopied;
+
+  /// No description provided for @localTransferAddDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Add device'**
+  String get localTransferAddDevice;
+
+  /// No description provided for @localTransferConnectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the other device’s connection information'**
+  String get localTransferConnectionHint;
+
+  /// No description provided for @localTransferConnectionInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid connection information. Copy it from the other device’s file-transfer page.'**
+  String get localTransferConnectionInvalid;
+
+  /// No description provided for @localTransferNearby.
+  ///
+  /// In en, this message translates to:
+  /// **'Nearby devices'**
+  String get localTransferNearby;
+
+  /// No description provided for @localTransferNearbyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Open File transfer on both devices and connect them to the same Wi-Fi. If discovery is blocked, add the other device using its connection information.'**
+  String get localTransferNearbyHint;
+
+  /// No description provided for @localTransferNoDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for nearby devices…'**
+  String get localTransferNoDevices;
+
+  /// No description provided for @localTransferSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Files to send'**
+  String get localTransferSelected;
+
+  /// No description provided for @localTransferChooseFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose files'**
+  String get localTransferChooseFiles;
+
+  /// No description provided for @localTransferChooseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 16 files, then tap Send beside a nearby device.'**
+  String get localTransferChooseHint;
+
+  /// No description provided for @localTransferIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Incoming transfer'**
+  String get localTransferIncoming;
+
+  /// No description provided for @localTransferCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification code'**
+  String get localTransferCode;
+
+  /// No description provided for @localTransferCompareCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that this code matches on both devices before accepting.'**
+  String get localTransferCompareCode;
+
+  /// No description provided for @localTransferAccept.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept'**
+  String get localTransferAccept;
+
+  /// No description provided for @localTransferReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get localTransferReject;
+
+  /// No description provided for @localTransferReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get localTransferReady;
+
+  /// No description provided for @localTransferPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking files…'**
+  String get localTransferPreparing;
+
+  /// No description provided for @localTransferWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for confirmation…'**
+  String get localTransferWaiting;
+
+  /// No description provided for @localTransferSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get localTransferSending;
+
+  /// No description provided for @localTransferReceiving.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving…'**
+  String get localTransferReceiving;
+
+  /// No description provided for @localTransferVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying file…'**
+  String get localTransferVerifying;
+
+  /// No description provided for @localTransferCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer complete'**
+  String get localTransferCompleted;
+
+  /// No description provided for @localTransferFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer failed'**
+  String get localTransferFailed;
+
+  /// No description provided for @localTransferCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer cancelled'**
+  String get localTransferCancelled;
+
+  /// No description provided for @localTransferRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The other device declined or did not confirm.'**
+  String get localTransferRejected;
+
+  /// No description provided for @localTransferBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The other device is busy. Try again later.'**
+  String get localTransferBusy;
+
+  /// No description provided for @localTransferIntegrityError.
+  ///
+  /// In en, this message translates to:
+  /// **'File verification failed. Please send it again.'**
+  String get localTransferIntegrityError;
+
+  /// No description provided for @localTransferFileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot read or save the file. Check storage space and choose up to 16 files.'**
+  String get localTransferFileError;
+
+  /// No description provided for @localTransferTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection timed out. Check that both devices are still connected.'**
+  String get localTransferTimeout;
+
+  /// No description provided for @localTransferNetworkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot connect. Check Wi-Fi, VPN local-network access, and router device isolation.'**
+  String get localTransferNetworkError;
+
+  /// No description provided for @localTransferReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Received on this device'**
+  String get localTransferReceived;
+
+  /// No description provided for @localTransferSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to device'**
+  String get localTransferSave;
+
+  /// No description provided for @localTransferLeaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop this transfer?'**
+  String get localTransferLeaveTitle;
+
+  /// No description provided for @localTransferLeaveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving this page cancels the current transfer. You can keep the app in the background while transferring.'**
+  String get localTransferLeaveBody;
+
+  /// No description provided for @localTransferStopAndLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop and leave'**
+  String get localTransferStopAndLeave;
+
+  /// No description provided for @livePhotoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Photo'**
+  String get livePhotoLabel;
+
+  /// No description provided for @livePhotoRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry Live Photo'**
+  String get livePhotoRetry;
+
+  /// No description provided for @livePhotoSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Live Photo sound'**
+  String get livePhotoSound;
+
+  /// No description provided for @livePhotoPairTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Live Photos'**
+  String get livePhotoPairTitle;
+
+  /// No description provided for @livePhotoPairBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching photos and MOV videos were selected. Combine each pair into one Live Photo?'**
+  String get livePhotoPairBody;
+
+  /// No description provided for @livePhotoPairMerge.
+  ///
+  /// In en, this message translates to:
+  /// **'Combine'**
+  String get livePhotoPairMerge;
+
+  /// No description provided for @livePhotoPairSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep separate'**
+  String get livePhotoPairSeparate;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33+3116
+版本：0.3.33+3119
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,7 +18,7 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3116。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33 / 3119。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
@@ -141,3 +141,37 @@ VC管理员后台已选择“使用官方配置”。用户实测：怀旧版退
 3116实机：用户确认两种通知方式正常互斥；FCM与后台连接模式各收到一次通知，点击均进入正确聊天。
 固定状态日志确认后台模式standby、切回FCM后token_ready及registered；最终手机保持FCM模式。
 临时测试工具已移除，未由助手发送真实消息。
+
+3117：普通文件选择改用磁盘路径，上传按512KiB分块流式读取，避免150MB APK整文件进入内存。
+APK/普通附件不再尝试图片解码。保留累计进度与失败重试，重试重新prepare，不重放未知结果的追加块。
+控制器销毁、账号切换、删除/到期会取消上传；引用的文件缓存须保留，重启后不恢复待发送附件。
+相册相机、图片转换和系统分享沿用原有限制，本次不重构大图解码。
+150MiB+17字节的测试文件经301块上传后SHA256一致，界面文件选择及重试测试通过。
+相关消息、分享及通知回归204项通过、1项环境用例跳过；修改范围静态检查无问题。
+真实VC服务器/手机的大文件发送验证待完成；未修改服务端或发布GitHub。
+
+3117安装记录：已在连接手机上使用install -r覆盖安装，系统版本号确认3117。实际150MB文件发送等待用户验证，未发布GitHub。
+
+3118（本地开发版）：服务器名同步、移除账户面板关闭按钮、回形针合并附件入口；
+相册面板文件按钮左侧新增快传，聊天首页及账户面板加号新增文件传输。
+Android独立版新增同局域网设备发现、接收确认、TLS直传、进度、取消和SHA256校验；
+独立dataSync前台服务仅维持用户主动传输，不改变FCM/后台消息的互斥选择。
+两端均需打开快传页面，支持最多16个文件，接收文件可保存至手机；不提供断点续传。
+完整说明及可重复的合成文件实测工具见docs/local-file-transfer.md。
+普通VC服务器上传失败仍待进一步定位；未发布GitHub。
+
+3118实机补充：手机与同Wi-Fi电脑双向发现及157,286,417字节合成文件直传完成；
+用户保存到手机后从系统文件选择器回传，三处SHA256一致。接收超时后重发/确认已核对。
+回传9次PSS采样约180.1–200.1MiB，未闪退；独立快传前台服务在完成后退出。
+尚未单独验证两台Android手机互传、锁屏持续传输及断网恢复，详见docs/local-file-transfer.md。
+
+3118对齐修订：附件面板的快传、文件按钮组占满可用宽度并靠右，窄屏仍支持右侧换行。
+
+3119：聊天图片与收藏表情最长边180、视频200×113，详情查看保留原尺寸。
+实况原文件识别、视频提取和默认静音预览；JPEG/HEIC+MOV确认合并；Android相册优先读取原文件。
+预览后台暂停、关闭后删除临时视频；阅后即焚原文件不进入持久缓存。
+全量Flutter713项通过、5项环境用例跳过，修改范围静态检查通过。
+原签名、ARM64、非debug属性、ZIP完整性和16KiB对齐检查通过。
+真机暂未完成：手机在构建期间断开USB连接。尚未覆盖安装3119；当前手机为3118对齐修正版。
+
+3119 GitHub发布：按预发布标记，未测试部分、5项跳过原因及已知大文件上传问题见docs/releases/3119.md。

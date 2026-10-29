@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:mime/mime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -10,6 +11,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/network/dio_client.dart';
 import '../domain/message_models.dart';
 import 'attachment_preparer.dart';
+import 'motion_photo_io.dart';
 
 part 'message_api.g.dart';
 
@@ -90,44 +92,59 @@ class MessageApi {
 
   /// The server accepts arbitrary properties for text, Markdown and replies.
   /// Omit the header when neither mentions nor a local confirmation ID exists.
-  static Map<String, dynamic>? _propertiesHeader(List<int>? mentions,
-      {int? localId}) {
+  static Map<String, dynamic>? _propertiesHeader(
+    List<int>? mentions, {
+    int? localId,
+  }) {
     final properties = <String, dynamic>{
       if (mentions != null && mentions.isNotEmpty) 'mentions': mentions,
       if (localId != null) 'local_id': localId,
     };
     if (properties.isEmpty) return null;
-    return {
-      'X-Properties': base64Encode(utf8.encode(jsonEncode(properties))),
-    };
+    return {'X-Properties': base64Encode(utf8.encode(jsonEncode(properties)))};
   }
 
-  /// Uploads [file] in a single chunk then sends a file message.
+  /// Keep file uploads off the Dart/Android heaps. Only a bounded prefix is
+  /// read for MIME detection; each HTTP request streams a bounded file range.
   Future<SendFileResult> uploadFileAndSend(
     MessageTarget target,
     File file, {
+    String? filename,
+    String? contentType,
     int? width,
     int? height,
+    int? localId,
+    CancelToken? cancelToken,
+    void Function(int sent, int total)? onSendProgress,
   }) async {
-    final bytes = await file.readAsBytes();
-    return uploadBytesAndSend(
+    final size = await file.length();
+    final reader = await file.open();
+    late Uint8List header;
+    try {
+      header = await reader.read(512);
+    } finally {
+      await reader.close();
+    }
+    final name = filename ?? file.uri.pathSegments.last;
+    final type = contentType ?? _inferContentType(name, bytes: header);
+    return _uploadAndSend(
       target,
-      bytes: bytes,
-      filename: file.uri.pathSegments.last,
+      filename: resolveFilename(name, bytes: header, contentType: type),
+      contentType: type,
+      size: size,
+      isMotionPhoto:
+          type.startsWith('image/') && await inspectMotionFile(file) != null,
+      openRange: (start, end) => file.openRead(start, end),
       width: width,
       height: height,
+      localId: localId,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
     );
   }
 
-  /// Uploads raw [bytes] (e.g. from the clipboard, which has no file path) in a
-  /// single chunk, then sends a message referencing the stored path. Only a
-  /// client recording sets [isVoiceMessage] to send `vocechat/audio`; picked
-  /// audio files remain ordinary `vocechat/file` attachments.
-  ///
-  /// Flow mirrors the web reference: prepare → upload(single chunk) → send. The
-  /// `X-Properties` header carries name/content_type/size/width/height so the
-  /// server-side property map (and the SSE echo) is complete and images render
-  /// at the right aspect ratio immediately.
+  /// Clipboard/voice data is already in memory. Use the same bounded upload
+  /// protocol as disk files without copying the whole buffer per request.
   Future<SendFileResult> uploadBytesAndSend(
     MessageTarget target, {
     required Uint8List bytes,
@@ -137,83 +154,140 @@ class MessageApi {
     int? width,
     int? height,
     int? localId,
+    CancelToken? cancelToken,
     void Function(int sent, int total)? onSendProgress,
   }) async {
     final prepared = await AttachmentPreparer.prepare(
-        bytes: bytes, filename: filename, contentType: contentType);
+      bytes: bytes,
+      filename: filename,
+      contentType: contentType,
+    );
     bytes = prepared.bytes;
     filename = prepared.filename;
     final resolvedType =
         prepared.contentType ?? _inferContentType(filename, bytes: bytes);
+    return _uploadAndSend(
+      target,
+      filename: resolveFilename(
+        filename,
+        bytes: bytes,
+        contentType: resolvedType,
+      ),
+      contentType: resolvedType,
+      size: bytes.length,
+      isMotionPhoto: prepared.isMotionPhoto,
+      openRange: (start, end) =>
+          Stream.value(Uint8List.sublistView(bytes, start, end)),
+      isVoiceMessage: isVoiceMessage,
+      width: width,
+      height: height,
+      localId: localId,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
+    );
+  }
 
-    filename =
-        resolveFilename(filename, bytes: bytes, contentType: resolvedType);
+  // Below the default Nginx 1 MiB body limit, including multipart overhead.
+  static const uploadChunkSize = 512 * 1024;
 
-    // Step 1: prepare
-    // Server contract: POST /api/resource/file/prepare returns the file_id as a
-    // BARE JSON string (Json<String>), e.g. "550e8400-...". It is NOT an object
-    // like {"file_id": "..."}. Read it directly; tolerate a map shape defensively.
-    final prepareResp = await _dio.post(
+  Future<SendFileResult> _uploadAndSend(
+    MessageTarget target, {
+    required String filename,
+    required String contentType,
+    required int size,
+    required Stream<List<int>> Function(int start, int end) openRange,
+    bool isVoiceMessage = false,
+    bool isMotionPhoto = false,
+    int? width,
+    int? height,
+    int? localId,
+    CancelToken? cancelToken,
+    void Function(int sent, int total)? onSendProgress,
+  }) async {
+    final prepareResp = await _uploadPost(
       '/api/resource/file/prepare',
-      data: {'content_type': resolvedType, 'filename': filename},
+      stage: 'prepare',
+      fileSize: size,
+      data: {'content_type': contentType, 'filename': filename},
+      cancelToken: cancelToken,
     );
     final prepareData = prepareResp.data;
     final fileId = prepareData is String
         ? prepareData
-        : (prepareData is Map ? prepareData['file_id'] as String : null);
+        : (prepareData is Map ? prepareData['file_id'] as String? : null);
     if (fileId == null || fileId.isEmpty) {
-      throw StateError('prepare upload returned no file_id: $prepareData');
+      throw StateError('prepare upload returned no file_id');
     }
 
-    // Step 2: upload chunk (single-chunk upload)
-    // Server endpoint: POST /api/resource/file/upload (multipart)
-    // Returns Json<Option<UploadFileResponse>> { path, size, hash,
-    // image_properties } — null until the last chunk. We send the whole file as
-    // one chunk with chunk_is_last="true" (string, matching the web client).
-    final formData = FormData.fromMap({
-      'file_id': fileId,
-      'chunk_data': MultipartFile.fromBytes(bytes, filename: filename),
-      'chunk_is_last': 'true',
-    });
-    final uploadResp = await _dio.post(
-      '/api/resource/file/upload',
-      data: formData,
-      onSendProgress: onSendProgress,
-    );
-    // On the last chunk the body is the UploadFileResponse object; path is at
-    // top level. Guard against a null/empty body (would mean the server didn't
-    // finalize the upload).
-    final uploadData = uploadResp.data;
-    if (uploadData is! Map) {
-      throw StateError('upload did not return a file path: $uploadData');
+    // Chunks append to the prepared ID. Never replay an uncertain chunk:
+    // manual retry starts with a fresh prepare ID, avoiding duplicated bytes.
+    Map? uploaded;
+    for (var offset = 0; offset < size || (size == 0 && offset == 0);) {
+      if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+      final start = offset;
+      final end = (start + uploadChunkSize).clamp(0, size);
+      final chunk = MultipartFile.fromStream(
+        () => openRange(start, end),
+        end - start,
+        filename: filename,
+      );
+      final form = FormData.fromMap({
+        'file_id': fileId,
+        'chunk_data': chunk,
+        'chunk_is_last': end == size ? 'true' : 'false',
+      });
+      final overhead = form.length - chunk.length;
+      final response = await _uploadPost(
+        '/api/resource/file/upload',
+        stage: end == size ? 'finalize' : 'chunk',
+        offset: start,
+        fileSize: size,
+        data: form,
+        cancelToken: cancelToken,
+        onSendProgress: (sent, total) => onSendProgress?.call(
+          start + (sent - overhead).clamp(0, end - start),
+          size,
+        ),
+      );
+      if (end == size) {
+        if (response.data is! Map) {
+          throw StateError('upload did not return a file path');
+        }
+        uploaded = response.data as Map;
+        break;
+      }
+      if (response.data != null) {
+        throw StateError('upload finalized before the last chunk');
+      }
+      offset = end;
     }
-    final path = uploadData['path'] as String;
-    // Prefer the server-detected image dimensions when present.
-    final imgProps = uploadData['image_properties'] as Map?;
-    final outW = (imgProps?['width'] as num?)?.toInt() ?? width;
-    final outH = (imgProps?['height'] as num?)?.toInt() ?? height;
-
-    // Step 3: send the file or recorded voice message. The server parses both
-    // bodies as JSON (Json<FileInfo>), so the body must be a
-    // JSON string `{"path":"..."}` — mirror the web client's
-    // `JSON.stringify(content)`. Passing a raw Map with a non-JSON content type
-    // would make Dio's default transformer emit Dart map toString (invalid
-    // JSON) and the server would reject it. X-Properties carries metadata
-    // (base64 JSON). Server returns raw i64 mid.
+    final path = uploaded?['path'];
+    if (path is! String ||
+        path.isEmpty ||
+        (uploaded?['size'] is num &&
+            (uploaded!['size'] as num).toInt() != size)) {
+      debugPrint('VoceUpload stage=metadata total=$size '
+          'returnedSize=${uploaded?['size'] is num ? uploaded!['size'] : -1}');
+      throw StateError('upload returned invalid file metadata');
+    }
+    final imgProps = uploaded?['image_properties'] as Map?;
     final properties = <String, dynamic>{
       'name': filename,
-      'content_type': resolvedType,
-      'size': bytes.length,
-      if (outW != null) 'width': outW,
-      if (outH != null) 'height': outH,
-      // Echoed back by the server via X-Properties so the SSE echo carries our
-      // sender-generated dedup key — _findOptimisticMatch matches on this to
-      // upgrade the optimistic row in place instead of duplicating it.
+      'content_type': contentType,
+      'size': size,
+      if (isMotionPhoto) 'motion_photo': true,
+      if (imgProps?['width'] != null || width != null)
+        'width': (imgProps?['width'] as num?)?.toInt() ?? width,
+      if (imgProps?['height'] != null || height != null)
+        'height': (imgProps?['height'] as num?)?.toInt() ?? height,
       if (localId != null) 'local_id': localId,
     };
-    final sendResp = await _dio.post(
+    final sendResp = await _uploadPost(
       _sendPath(target),
+      stage: 'message',
+      fileSize: size,
       data: jsonEncode({'path': path}),
+      cancelToken: cancelToken,
       options: Options(
         contentType: isVoiceMessage ? 'vocechat/audio' : 'vocechat/file',
         headers: {
@@ -224,13 +298,39 @@ class MessageApi {
     return SendFileResult(mid: (sendResp.data as num).toInt(), path: path);
   }
 
+  /// Diagnostics contain only fixed stages, byte counts and HTTP/error codes.
+  /// Never include file names, resource IDs, auth tokens or response bodies.
+  Future<Response<dynamic>> _uploadPost(
+    String path, {
+    required String stage,
+    required int fileSize,
+    int offset = 0,
+    dynamic data,
+    Options? options,
+    CancelToken? cancelToken,
+    void Function(int, int)? onSendProgress,
+  }) async {
+    try {
+      return await _dio.post(path,
+          data: data,
+          options: options,
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress);
+    } on DioException catch (error) {
+      debugPrint('VoceUpload stage=$stage offset=$offset total=$fileSize '
+          'category=${error.type.name} status=${error.response?.statusCode ?? 0}');
+      rethrow;
+    }
+  }
+
   // ---- history -------------------------------------------------------
 
   Future<List<ChatMessage>> getHistory(
     MessageTarget target, {
     int? beforeMid,
     int limit = 30,
-  }) => getHistoryForSearch(target, beforeMid: beforeMid, limit: limit);
+  }) =>
+      getHistoryForSearch(target, beforeMid: beforeMid, limit: limit);
 
   Future<List<ChatMessage>> getHistoryForSearch(
     MessageTarget target, {

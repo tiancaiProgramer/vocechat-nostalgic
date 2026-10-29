@@ -1,3 +1,4 @@
+import '../background/background_preferences.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../../features/channels/presentation/chat_list_screen.dart';
 import '../../features/channels/presentation/channel_settings_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/local_transfer/presentation/local_transfer_screen.dart';
 import '../../features/messages/presentation/chat_screen.dart';
 import '../../features/search/presentation/contact_search_screen.dart';
 import '../../features/search/presentation/message_search_screen.dart';
@@ -275,6 +277,14 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
         builder: (context, state) => RegisterScreen(
             magicToken: state.extra is String ? state.extra as String : null),
       ),
+      if (isAndroidBackgroundSupported)
+        GoRoute(
+          path: '/file-transfer',
+          builder: (context, state) => LocalTransferScreen(
+              initialFiles: state.extra is List<String>
+                  ? state.extra as List<String>
+                  : const []),
+        ),
       StatefulShellRoute.indexedStack(
         // Android already animates the Activity into view. Restoring the local
         // session must not start a second Material page zoom over that window.

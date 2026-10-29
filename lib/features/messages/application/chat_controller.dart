@@ -1,11 +1,12 @@
 import '../../../core/background/background_lifecycle.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, debugPrint;
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -43,8 +44,10 @@ class ChatController extends _$ChatController {
   final Map<int, int> _localOrderAnchors = {};
 
   List<ChatMessage> _withLocalOrderAnchors(List<ChatMessage> messages) {
-    final latestMid =
-        messages.fold<int>(0, (mid, m) => m.mid > mid ? m.mid : mid);
+    final latestMid = messages.fold<int>(
+      0,
+      (mid, m) => m.mid > mid ? m.mid : mid,
+    );
     return messages.map((m) {
       if (m.mid >= 0) {
         return m.localOrderAnchor == null
@@ -52,7 +55,9 @@ class ChatController extends _$ChatController {
             : m.copyWith(localOrderAnchor: null);
       }
       final anchor = _localOrderAnchors.putIfAbsent(
-          m.mid, () => m.localOrderAnchor ?? latestMid);
+        m.mid,
+        () => m.localOrderAnchor ?? latestMid,
+      );
       return m.localOrderAnchor == anchor
           ? m
           : m.copyWith(localOrderAnchor: anchor);
@@ -77,8 +82,11 @@ class ChatController extends _$ChatController {
         // Older caches could retain the placeholder after an acknowledgement:
         // snapshot writes upsert rows rather than replacing the conversation.
         if (_localIdOf(m) != null &&
-            confirmedLocalIds
-                .contains((m.fromUid, _localIdOf(m), m.displayContentType))) {
+            confirmedLocalIds.contains((
+              m.fromUid,
+              _localIdOf(m),
+              m.displayContentType,
+            ))) {
           _cache?.deleteMid(target, m.mid);
           continue;
         }
@@ -86,16 +94,17 @@ class ChatController extends _$ChatController {
         // Keep any current send's status if it started while reading the cache.
         _statuses.putIfAbsent(m.mid, () => MessageSendStatus.failed);
         _localOrderAnchors.putIfAbsent(
-            m.mid,
-            () =>
-                m.localOrderAnchor ??
-                // Legacy rows have no stored anchor. Infer their position
-                // once from timestamps, then persist the resulting server mid.
-                rows.fold<int>(0, (anchor, row) {
-                  return row.mid > anchor && row.createdAt <= m.createdAt
-                      ? row.mid
-                      : anchor;
-                }));
+          m.mid,
+          () =>
+              m.localOrderAnchor ??
+              // Legacy rows have no stored anchor. Infer their position
+              // once from timestamps, then persist the resulting server mid.
+              rows.fold<int>(0, (anchor, row) {
+                return row.mid > anchor && row.createdAt <= m.createdAt
+                    ? row.mid
+                    : anchor;
+              }),
+        );
       }
       restored.add(m);
     }
@@ -122,8 +131,10 @@ class ChatController extends _$ChatController {
     }
     if (earliest == null) return;
     final delay = earliest - DateTime.now().millisecondsSinceEpoch;
-    _expiryTimer =
-        Timer(Duration(milliseconds: delay > 0 ? delay : 0), _expireMessages);
+    _expiryTimer = Timer(
+      Duration(milliseconds: delay > 0 ? delay : 0),
+      _expireMessages,
+    );
   }
 
   void _expireMessages() {
@@ -145,7 +156,7 @@ class ChatController extends _$ChatController {
       _seenMids.remove(m.mid);
       _statuses.remove(m.mid);
       _localAttachments.remove(m.mid);
-      _pendingFiles.remove(m.mid);
+      _pendingFiles.remove(m.mid)?.cancel.cancel();
       _progress.remove(m.mid);
       _localOrderAnchors.remove(m.mid);
       _cache?.deleteMid(target, m.mid);
@@ -154,7 +165,8 @@ class ChatController extends _$ChatController {
   }
 
   int? _expiryDeadline(ChatMessage message) => message.expiryDeadline(
-      includeUnsent: _statuses[message.mid] == MessageSendStatus.failed);
+        includeUnsent: _statuses[message.mid] == MessageSendStatus.failed,
+      );
 
   /// UI-only send status keyed by mid (negative for optimistic, then real mid).
   final Map<int, MessageSendStatus> _statuses = {};
@@ -165,8 +177,8 @@ class ChatController extends _$ChatController {
   /// server row (with a real resource URL) lands so we stop holding the bytes.
   final Map<int, Uint8List> _localAttachments = {};
 
-  /// Pending file uploads kept for retry, keyed by tempMid. Holds the raw bytes
-  /// + metadata so [retrySend] can re-run the upload without re-picking.
+  /// Pending file uploads kept for retry, keyed by tempMid. Holds a disk path
+  /// or clipboard bytes + metadata so [retrySend] can re-run the upload without re-picking.
   final Map<int, _PendingFile> _pendingFiles = {};
 
   /// Upload progress (0.0–1.0) for in-flight file rows, keyed by the row's
@@ -294,8 +306,10 @@ class ChatController extends _$ChatController {
   }
 
   List<ChatMessage> _mergeIncoming(
-      List<ChatMessage> current, List<ChatMessage> batch,
-      {bool matchOptimistic = true}) {
+    List<ChatMessage> current,
+    List<ChatMessage> batch, {
+    bool matchOptimistic = true,
+  }) {
     final currentUid = _currentUid();
 
     // Merge against the rows themselves so cache, history and repeated live
@@ -359,7 +373,10 @@ class ChatController extends _$ChatController {
   ///      Content/reply matching is only used for legacy rows without an id.
   /// Returns -1 if no candidate found.
   int _findOptimisticMatch(
-      List<ChatMessage> rows, ChatMessage echo, int currentUid) {
+    List<ChatMessage> rows,
+    ChatMessage echo,
+    int currentUid,
+  ) {
     final echoContent = echo.displayContent;
     final echoContentType = echo.displayContentType;
     final echoReplyMid = switch (echo.detail) {
@@ -418,6 +435,9 @@ class ChatController extends _$ChatController {
     _seenMids.clear();
     _statuses.clear();
     _localAttachments.clear();
+    for (final pending in _pendingFiles.values) {
+      pending.cancel.cancel();
+    }
     _pendingFiles.clear();
     _progress.clear();
     _localOrderAnchors.clear();
@@ -428,6 +448,9 @@ class ChatController extends _$ChatController {
       _expiryTimer?.cancel();
       _pendingIncoming.clear();
       _pendingApply.clear();
+      for (final pending in _pendingFiles.values) {
+        pending.cancel.cancel();
+      }
       lifecycle.dispose();
     });
 
@@ -457,9 +480,9 @@ class ChatController extends _$ChatController {
     // the chat list as "unsupported" rows.
     final cachedRaw = await cache.read(target);
     if (generation != _generation) return const [];
-    final cached = _withoutExpired(_restoreCachedRows(cachedRaw))
-        .where((m) => m.detail is! ReactionMessageDetail)
-        .toList(growable: false);
+    final cached = _withoutExpired(
+      _restoreCachedRows(cachedRaw),
+    ).where((m) => m.detail is! ReactionMessageDetail).toList(growable: false);
     _seenMids
       ..clear()
       ..addAll(cached.where((m) => m.mid > 0).map((m) => m.mid));
@@ -481,9 +504,9 @@ class ChatController extends _$ChatController {
     // 2. No cache: fetch history from server.
     final messagesRaw = await _loadHistory();
     if (generation != _generation) return const [];
-    final messages = _withoutExpired(messagesRaw)
-        .where((m) => m.detail is! ReactionMessageDetail)
-        .toList(growable: false);
+    final messages = _withoutExpired(
+      messagesRaw,
+    ).where((m) => m.detail is! ReactionMessageDetail).toList(growable: false);
     _seenMids.addAll(messages.where((m) => m.mid > 0).map((m) => m.mid));
 
     // Drain pending SSE messages that arrived during the await.
@@ -535,8 +558,11 @@ class ChatController extends _$ChatController {
   /// Edit a previously-sent text/markdown message authored by the current user.
   /// On success the row is mutated in place and persisted; the server will also
   /// fan out an edit-reaction event, but [applyEditEcho] is idempotent.
-  Future<void> editText(int mid, String newText,
-      {bool markdown = false}) async {
+  Future<void> editText(
+    int mid,
+    String newText, {
+    bool markdown = false,
+  }) async {
     final generation = _generation;
     if (mid <= 0) return;
     final current = _messages;
@@ -551,11 +577,7 @@ class ChatController extends _$ChatController {
       await api.editMessage(mid, newText);
     }
     if (generation != _generation) return;
-    applyEditEcho(
-      mid,
-      newText,
-      markdown ? 'text/markdown' : 'text/plain',
-    );
+    applyEditEcho(mid, newText, markdown ? 'text/markdown' : 'text/plain');
   }
 
   /// Delete a message. On success the row is removed locally and persisted.
@@ -616,14 +638,21 @@ class ChatController extends _$ChatController {
 
     try {
       final realMid = await ref.read(messageApiProvider).replyMessage(
-          targetMid, text,
-          markdown: markdown, mentions: mentions, localId: -tempMid);
+            targetMid,
+            text,
+            markdown: markdown,
+            mentions: mentions,
+            localId: -tempMid,
+          );
       if (generation != _generation) return;
 
       _confirmSent(
-          tempMid,
-          optimistic.copyWith(
-              mid: realMid, createdAt: DateTime.now().millisecondsSinceEpoch));
+        tempMid,
+        optimistic.copyWith(
+          mid: realMid,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     } catch (_) {
       if (generation != _generation) return;
       _markSendFailed(tempMid);
@@ -663,7 +692,7 @@ class ChatController extends _$ChatController {
     _seenMids.remove(targetMid);
     _statuses.remove(targetMid);
     _localAttachments.remove(targetMid);
-    _pendingFiles.remove(targetMid);
+    _pendingFiles.remove(targetMid)?.cancel.cancel();
     _progress.remove(targetMid);
     _localOrderAnchors.remove(targetMid);
     _persist();
@@ -673,10 +702,15 @@ class ChatController extends _$ChatController {
   List<ChatMessage> _drainPending(List<ChatMessage> base) {
     // A send or live event may already have published state while disk or
     // history was loading. Merge into that latest state, never overwrite it.
-    final history =
-        _mergeIncoming(_messages ?? const [], base, matchOptimistic: false);
-    final next =
-        _mergeIncoming(history, [..._pendingIncoming, ..._pendingApply]);
+    final history = _mergeIncoming(
+      _messages ?? const [],
+      base,
+      matchOptimistic: false,
+    );
+    final next = _mergeIncoming(history, [
+      ..._pendingIncoming,
+      ..._pendingApply,
+    ]);
     _pendingIncoming.clear();
     _pendingApply.clear();
     return next;
@@ -729,7 +763,10 @@ class ChatController extends _$ChatController {
   }
 
   void _acknowledgeOrder(
-      ChatMessage placeholder, int realMid, List<ChatMessage> rows) {
+    ChatMessage placeholder,
+    int realMid,
+    List<ChatMessage> rows,
+  ) {
     for (final row in rows) {
       if (row.mid < 0 &&
           row.mid != placeholder.mid &&
@@ -749,7 +786,10 @@ class ChatController extends _$ChatController {
     final current = _messages ?? const <ChatMessage>[];
     if (!current.any((m) => m.mid == tempMid)) return;
     _acknowledgeOrder(
-        current.firstWhere((m) => m.mid == tempMid), confirmed.mid, current);
+      current.firstWhere((m) => m.mid == tempMid),
+      confirmed.mid,
+      current,
+    );
     // History or SSE may already carry the authoritative row. Preserve it,
     // remove the placeholder, and sort by server mid after HTTP confirmation.
     final rows = current.where((m) => m.mid != tempMid).toList();
@@ -838,9 +878,12 @@ class ChatController extends _$ChatController {
       // Replace placeholder with server-confirmed mid.
       if (generation != _generation) return;
       _confirmSent(
-          tempMid,
-          optimistic.copyWith(
-              mid: realMid, createdAt: DateTime.now().millisecondsSinceEpoch));
+        tempMid,
+        optimistic.copyWith(
+          mid: realMid,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     } catch (_) {
       if (generation != _generation) return;
       _markSendFailed(tempMid);
@@ -862,6 +905,14 @@ class ChatController extends _$ChatController {
         contentType: contentType,
       );
 
+  /// Disk-backed files stay on disk through upload and manual retry.
+  Future<void> sendFile({
+    required File file,
+    required String filename,
+    String? contentType,
+  }) =>
+      _sendAttachment(file: file, filename: filename, contentType: contentType);
+
   /// Send audio recorded by the client as a voice message. Selecting an audio
   /// file still uses [sendImage] and preserves the ordinary attachment style.
   Future<void> sendVoiceMessage({
@@ -876,7 +927,8 @@ class ChatController extends _$ChatController {
       );
 
   Future<void> _sendAttachment({
-    required Uint8List bytes,
+    Uint8List? bytes,
+    File? file,
     required String filename,
     String? contentType,
     bool isVoiceMessage = false,
@@ -888,33 +940,40 @@ class ChatController extends _$ChatController {
     // (see _findOptimisticMatch). Use a stable positive int.
     final localId = -tempMid;
 
-    final prepared = await AttachmentPreparer.prepare(
-        bytes: bytes, filename: filename, contentType: contentType);
-    if (generation != _generation) return;
-    bytes = prepared.bytes;
-    filename = prepared.filename;
-    contentType = prepared.contentType;
-
-    // Always resolve a concrete content_type: the optimistic row renders by
-    // properties['content_type'], and a missing/empty value makes _isImage()
-    // false → the image would wrongly render as a generic file card until the
-    // server echo arrives. Infer from filename + magic bytes when not given.
+    var isMotionPhoto = false;
+    assert(bytes != null || file != null);
+    if (bytes != null) {
+      final prepared = await AttachmentPreparer.prepare(
+        bytes: bytes,
+        filename: filename,
+        contentType: contentType,
+      );
+      if (generation != _generation) return;
+      isMotionPhoto = prepared.isMotionPhoto;
+      bytes = prepared.bytes;
+      filename = prepared.filename;
+      contentType = prepared.contentType;
+    }
     final resolvedType =
         contentType ?? MessageApi.inferContentType(filename, bytes: bytes);
-
     filename = MessageApi.resolveFilename(
       filename,
-      bytes: bytes,
+      bytes: bytes ?? Uint8List(0),
       contentType: resolvedType,
     );
-
-    final dims = isVoiceMessage ? null : await _decodeImageSize(bytes);
+    final size = bytes?.length ?? await file!.length();
+    // Generic attachments (including APKs/videos) are never image-decoded.
+    // Large disk-backed images use server metadata once upload completes.
+    final dims = bytes != null && resolvedType.startsWith('image/')
+        ? await _decodeImageSize(bytes)
+        : null;
     if (generation != _generation) return;
 
     final properties = <String, dynamic>{
       'name': filename,
       'content_type': resolvedType,
-      'size': bytes.length,
+      'size': size,
+      if (isMotionPhoto) 'motion_photo': true,
       if (dims != null) 'width': dims.$1,
       if (dims != null) 'height': dims.$2,
       'local_id': localId,
@@ -934,9 +993,10 @@ class ChatController extends _$ChatController {
       ),
     );
 
-    _localAttachments[tempMid] = bytes;
+    if (bytes != null) _localAttachments[tempMid] = bytes;
     _pendingFiles[tempMid] = _PendingFile(
       bytes: bytes,
+      file: file,
       filename: filename,
       contentType: resolvedType,
       isVoiceMessage: isVoiceMessage,
@@ -975,17 +1035,31 @@ class ChatController extends _$ChatController {
     }
 
     try {
-      final result = await ref.read(messageApiProvider).uploadBytesAndSend(
-            target,
-            bytes: pending.bytes,
-            filename: pending.filename,
-            contentType: pending.contentType,
-            isVoiceMessage: pending.isVoiceMessage,
-            width: pending.width,
-            height: pending.height,
-            localId: pending.localId,
-            onSendProgress: onProgress,
-          );
+      final api = ref.read(messageApiProvider);
+      final result = pending.file != null
+          ? await api.uploadFileAndSend(
+              target,
+              pending.file!,
+              filename: pending.filename,
+              contentType: pending.contentType,
+              width: pending.width,
+              height: pending.height,
+              localId: pending.localId,
+              cancelToken: pending.cancel,
+              onSendProgress: onProgress,
+            )
+          : await api.uploadBytesAndSend(
+              target,
+              bytes: pending.bytes!,
+              filename: pending.filename,
+              contentType: pending.contentType,
+              isVoiceMessage: pending.isVoiceMessage,
+              width: pending.width,
+              height: pending.height,
+              localId: pending.localId,
+              cancelToken: pending.cancel,
+              onSendProgress: onProgress,
+            );
 
       // Upgrade placeholder → confirmed. Swap content to the real server path
       // and DROP the local preview bytes + progress so the row now renders via
@@ -1016,7 +1090,9 @@ class ChatController extends _$ChatController {
         _confirmSent(tempMid, confirmed);
       }
       _progress.remove(tempMid);
-    } catch (_) {
+    } catch (error) {
+      debugPrint(
+          'VoceUpload stage=controller category=${error is DioException ? error.type.name : error is FileSystemException ? "fileAccess" : error is StateError ? "protocol" : "unknown"}');
       if (generation != _generation) return;
       _markSendFailed(tempMid);
     }
@@ -1062,7 +1138,7 @@ class ChatController extends _$ChatController {
   Future<void> retrySend(int tempMid) async {
     final generation = _generation;
     if (!canRetrySend(tempMid)) return;
-    // File retry: re-run the upload from the cached bytes.
+    // File retry: prepare a fresh upload from the retained path/bytes.
     final pendingFile = _pendingFiles[tempMid];
     if (pendingFile != null) {
       _statuses[tempMid] = MessageSendStatus.sending;
@@ -1095,19 +1171,28 @@ class ChatController extends _$ChatController {
       final int realMid;
       if (isMarkdown) {
         realMid = await ref.read(messageApiProvider).sendMarkdown(
-            target, detail.content,
-            mentions: mentions, localId: localId);
+              target,
+              detail.content,
+              mentions: mentions,
+              localId: localId,
+            );
       } else {
         realMid = await ref.read(messageApiProvider).sendText(
-            target, detail.content,
-            mentions: mentions, localId: localId);
+              target,
+              detail.content,
+              mentions: mentions,
+              localId: localId,
+            );
       }
 
       if (generation != _generation) return;
       _confirmSent(
-          tempMid,
-          msg.copyWith(
-              mid: realMid, createdAt: DateTime.now().millisecondsSinceEpoch));
+        tempMid,
+        msg.copyWith(
+          mid: realMid,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     } catch (_) {
       if (generation != _generation) return;
       _markSendFailed(tempMid);
@@ -1115,14 +1200,18 @@ class ChatController extends _$ChatController {
   }
 
   /// Fetch contiguous history so locating an old pin leaves no gaps in chat.
-  Future<bool> ensureMessageLoaded(int mid,
-      {bool Function()? shouldContinue}) async {
+  Future<bool> ensureMessageLoaded(
+    int mid, {
+    bool Function()? shouldContinue,
+  }) async {
     final generation = _generation;
     while (generation == _generation && (shouldContinue?.call() ?? true)) {
       final rows = state.valueOrNull ?? const <ChatMessage>[];
       if (rows.any((m) => m.mid == mid)) return true;
       final oldest = rows.where((m) => m.mid > 0).fold<int?>(
-          null, (value, m) => value == null || m.mid < value ? m.mid : value);
+            null,
+            (value, m) => value == null || m.mid < value ? m.mid : value,
+          );
       if (mid <= 0 || oldest == null || oldest < mid || !_hasMore) return false;
       final before = _historyBeforeMid;
       await loadMore();
@@ -1154,7 +1243,9 @@ class ChatController extends _$ChatController {
     if (current.isEmpty) return;
 
     final oldestMid = current.where((m) => m.mid > 0).fold<int?>(
-        null, (prev, m) => prev == null || m.mid < prev ? m.mid : prev);
+          null,
+          (prev, m) => prev == null || m.mid < prev ? m.mid : prev,
+        );
     if (oldestMid == null) return;
     final beforeMid =
         _historyBeforeMid != null && _historyBeforeMid! < oldestMid
@@ -1172,7 +1263,9 @@ class ChatController extends _$ChatController {
         return;
       }
       _historyBeforeMid = olderRaw.fold<int>(
-          beforeMid, (mid, m) => m.mid > 0 && m.mid < mid ? m.mid : mid);
+        beforeMid,
+        (mid, m) => m.mid > 0 && m.mid < mid ? m.mid : mid,
+      );
       final older = olderRaw
           .where((m) => m.detail is! ReactionMessageDetail)
           .toList(growable: false);
@@ -1202,8 +1295,9 @@ class ChatController extends _$ChatController {
 
 /// Cached pending file upload for optimistic send + retry.
 class _PendingFile {
-  const _PendingFile({
-    required this.bytes,
+  _PendingFile({
+    this.bytes,
+    this.file,
     required this.filename,
     required this.contentType,
     required this.isVoiceMessage,
@@ -1212,7 +1306,9 @@ class _PendingFile {
     this.height,
   });
 
-  final Uint8List bytes;
+  final Uint8List? bytes;
+  final File? file;
+  final CancelToken cancel = CancelToken();
   final String filename;
   final String? contentType;
   final bool isVoiceMessage;

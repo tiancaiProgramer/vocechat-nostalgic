@@ -1612,4 +1612,147 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get fcmUnregisterFailed => 'FCM 登记尚未移除，请检查 VC 连接后重试。';
+
+  @override
+  String get localTransferTitle => '文件传输';
+
+  @override
+  String get localTransferQuick => '快传';
+
+  @override
+  String get localTransferDescription => '通过局域网直接传输。两台设备都需打开此页面，文件只在这两台设备之间传输。';
+
+  @override
+  String get localTransferMyDevice => '本机设备';
+
+  @override
+  String get localTransferCopyConnection => '复制连接信息';
+
+  @override
+  String get localTransferCopied => '已复制连接信息';
+
+  @override
+  String get localTransferAddDevice => '添加设备';
+
+  @override
+  String get localTransferConnectionHint => '粘贴另一台设备的连接信息';
+
+  @override
+  String get localTransferConnectionInvalid => '连接信息无效，请从另一台设备的文件传输页面复制。';
+
+  @override
+  String get localTransferNearby => '附近设备';
+
+  @override
+  String get localTransferNearbyHint =>
+      '两台设备都打开“文件传输”，并连接同一 Wi-Fi。无法发现时，可复制对方的连接信息来添加设备。';
+
+  @override
+  String get localTransferNoDevices => '正在查找附近设备…';
+
+  @override
+  String get localTransferSelected => '待发送文件';
+
+  @override
+  String get localTransferChooseFiles => '选择文件';
+
+  @override
+  String get localTransferChooseHint => '最多选择16个文件，再点击附近设备旁的“发送”。';
+
+  @override
+  String get localTransferIncoming => '收到文件传输请求';
+
+  @override
+  String get localTransferCode => '确认码';
+
+  @override
+  String get localTransferCompareCode => '接收前请核对两台设备上的确认码是否一致。';
+
+  @override
+  String get localTransferAccept => '接收';
+
+  @override
+  String get localTransferReject => '拒绝';
+
+  @override
+  String get localTransferReady => '已就绪';
+
+  @override
+  String get localTransferPreparing => '正在检查文件…';
+
+  @override
+  String get localTransferWaiting => '等待对方确认…';
+
+  @override
+  String get localTransferSending => '正在发送…';
+
+  @override
+  String get localTransferReceiving => '正在接收…';
+
+  @override
+  String get localTransferVerifying => '正在校验文件…';
+
+  @override
+  String get localTransferCompleted => '传输完成';
+
+  @override
+  String get localTransferFailed => '传输失败';
+
+  @override
+  String get localTransferCancelled => '已取消传输';
+
+  @override
+  String get localTransferRejected => '对方拒绝或未确认接收。';
+
+  @override
+  String get localTransferBusy => '对方正在传输，请稍后重试。';
+
+  @override
+  String get localTransferIntegrityError => '文件校验失败，请重新发送。';
+
+  @override
+  String get localTransferFileError => '无法读取或保存文件，请检查存储空间，且单次最多选择16个文件。';
+
+  @override
+  String get localTransferTimeout => '连接超时，请确认两台设备仍保持连接。';
+
+  @override
+  String get localTransferNetworkError =>
+      '无法连接，请检查 Wi-Fi、VPN 的局域网访问设置，以及路由器是否开启设备隔离。';
+
+  @override
+  String get localTransferReceived => '本机已接收';
+
+  @override
+  String get localTransferSave => '保存到手机';
+
+  @override
+  String get localTransferLeaveTitle => '停止当前传输？';
+
+  @override
+  String get localTransferLeaveBody => '离开此页面会取消当前传输。传输过程中可以将应用切到后台。';
+
+  @override
+  String get localTransferStopAndLeave => '停止并离开';
+
+  @override
+  String get livePhotoLabel => '实况';
+
+  @override
+  String get livePhotoRetry => '重试实况';
+
+  @override
+  String get livePhotoSound => '切换实况声音';
+
+  @override
+  String get livePhotoPairTitle => '导入实况照片';
+
+  @override
+  String get livePhotoPairBody => '检测到同名照片与 MOV 视频，是否将每组组合成一张实况照片？';
+
+  @override
+  String get livePhotoPairMerge => '合并实况';
+
+  @override
+  String get livePhotoPairSeparate => '分别添加';
 }

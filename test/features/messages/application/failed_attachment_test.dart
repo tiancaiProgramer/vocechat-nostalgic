@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,7 +53,10 @@ void main() {
           data: request.path.endsWith('/prepare')
               ? 'id'
               : request.path.endsWith('/upload')
-                  ? {'path': 'photo.jpg'}
+                  ? ((request.data as FormData).fields.any(
+                          (f) => f.key == 'chunk_is_last' && f.value == 'true')
+                      ? {'path': 'photo.jpg'}
+                      : null)
                   : request.method == 'POST'
                       ? 100
                       : []));
@@ -78,6 +82,27 @@ void main() {
     expect(controller.statusFor(mid), MessageSendStatus.failed);
     return mid;
   }
+
+  test(
+      'disk-backed APK failure retries without keeping whole-file preview bytes',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('vc-retry-file-');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/application.apk');
+    final handle = await file.open(mode: FileMode.write);
+    await handle.truncate(150 * 1024 * 1024);
+    await handle.close();
+    await controller.sendFile(file: file, filename: 'application.apk');
+    final mid = rows().firstWhere((row) => row.mid < 0).mid;
+    expect(controller.localBytesFor(mid), isNull);
+    expect(controller.statusFor(mid), MessageSendStatus.failed);
+    expect(controller.canRetrySend(mid), isTrue);
+    uploadFails = false;
+    await controller.retrySend(mid);
+    expect(controller.statusFor(100), MessageSendStatus.sent);
+    expect(controller.localBytesFor(100), isNull);
+    expect(rows().first.displayContent, jsonEncode({'path': 'photo.jpg'}));
+  });
 
   test('new text and SSE messages pass failed upload even with clock skew',
       () async {

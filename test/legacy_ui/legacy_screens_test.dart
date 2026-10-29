@@ -36,7 +36,7 @@ class _Servers extends ServerStore {
   Future<ServerState> build() async =>
       const ServerState(currentServerId: 'preview', servers: [
         ServerConfig(
-            id: 'preview', baseUrl: 'https://demo.example', name: 'VoceChat')
+            id: 'preview', baseUrl: 'https://demo.example', name: 'KGN')
       ]);
 }
 
@@ -238,13 +238,16 @@ void main() {
               findsOneWidget);
           expect(find.text('Add account'), findsNothing);
           expect(find.text('Select Server'), findsNothing);
-          expect(tester.getCenter(find.byKey(const ValueKey('drawer-add'))).dy,
-              tester.getCenter(find.byKey(const ValueKey('drawer-close'))).dy);
+          expect(find.byKey(const ValueKey('drawer-close')), findsNothing);
+          expect(find.byKey(const ValueKey('drawer-add')), findsOneWidget);
         }
         expect(tester.takeException(), isNull);
         if (screen == 'login') expect(find.byType(LoginScreen), findsOneWidget);
-        if (screen == 'chats')
+        if (screen == 'chats') {
           expect(find.byType(CupertinoTabBar), findsOneWidget);
+          expect(find.text('KGN'), findsOneWidget);
+          expect(find.text('demo.example'), findsNothing);
+        }
         if (screen == 'chat') {
           expect(find.byTooltip('Emoji'), findsOneWidget);
           expect(find.byTooltip('More'), findsWidgets);
@@ -306,6 +309,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Add account'), findsOneWidget);
           expect(find.text('Add server'), findsOneWidget);
+          expect(find.text('File transfer'), findsOneWidget);
           await tester.tap(find.text('Add account'));
           await tester.pumpAndSettle();
           expect(find.byType(TextFormField), findsNWidgets(3));

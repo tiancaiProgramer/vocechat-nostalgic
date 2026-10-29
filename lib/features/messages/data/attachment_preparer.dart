@@ -2,13 +2,17 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
+import 'motion_photo.dart';
 
 class PreparedAttachment {
-  const PreparedAttachment(this.bytes, this.filename, this.contentType);
+  const PreparedAttachment(this.bytes, this.filename, this.contentType,
+      {this.isMotionPhoto = false});
 
   final Uint8List bytes;
   final String filename;
   final String? contentType;
+  final bool isMotionPhoto;
 }
 
 /// Convert Apple camera originals before previewing or uploading them. Renaming
@@ -21,6 +25,7 @@ class AttachmentPreparer {
     required String filename,
     String? contentType,
   }) async {
+    final motion = MotionPhoto.inspectBytes(bytes);
     final extension = filename.split('.').last.toLowerCase();
     final type = contentType?.split(';').first.trim().toLowerCase();
     final appleName = extension == 'heic' || extension == 'heif';
@@ -29,15 +34,24 @@ class AttachmentPreparer {
         type == 'image/heic-sequence' ||
         type == 'image/heif-sequence';
     final appleBytes = _isHeif(bytes);
+    if (motion != null && appleBytes) {
+      return prepareLivePhoto(
+          still: Uint8List.sublistView(bytes, 0, motion.stillLength),
+          movie: Uint8List.sublistView(
+              bytes, motion.offset, motion.offset + motion.length),
+          filename: filename);
+    }
     if (!appleName && !appleType && !appleBytes) {
-      return PreparedAttachment(bytes, filename, contentType);
+      return PreparedAttachment(bytes, filename, contentType,
+          isMotionPhoto: motion != null);
     }
 
     // Some pickers already transcode the bytes but retain the original name.
     final existingFormat = _commonFormat(bytes);
     if (existingFormat != null) {
       return PreparedAttachment(
-          bytes, _rename(filename, existingFormat.$1), existingFormat.$2);
+          bytes, _rename(filename, existingFormat.$1), existingFormat.$2,
+          isMotionPhoto: motion != null);
     }
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
@@ -67,6 +81,30 @@ class AttachmentPreparer {
     } finally {
       codec.dispose();
     }
+  }
+
+  /// Apple library pairs and explicitly selected JPEG/HEIC + MOV resources are
+  /// transported as one standard JPEG Motion Photo, preserving their video.
+  static Future<PreparedAttachment> prepareLivePhoto({
+    required Uint8List still,
+    required Uint8List movie,
+    required String filename,
+  }) async {
+    if (still.length + movie.length + 4096 > MotionPhoto.maxBytes) {
+      throw const FormatException('Live photo is too large');
+    }
+    final originalMotion = MotionPhoto.inspectBytes(still);
+    if (originalMotion != null) {
+      still = Uint8List.sublistView(still, 0, originalMotion.stillLength);
+    }
+    final prepared = await prepare(bytes: still, filename: filename);
+    final jpeg = _commonFormat(prepared.bytes)?.$2 == 'image/jpeg'
+        ? prepared.bytes
+        : await compute(_pngToJpeg, prepared.bytes);
+    final name = _rename(prepared.filename, 'jpg');
+    return PreparedAttachment(MotionPhoto.combineJpeg(jpeg, movie),
+        '${name.substring(0, name.length - 4)}_MP.jpg', 'image/jpeg',
+        isMotionPhoto: true);
   }
 
   static String _rename(String name, String extension) {
@@ -120,4 +158,17 @@ class AttachmentPreparer {
       'msf1'
     }.contains);
   }
+}
+
+Uint8List _pngToJpeg(Uint8List bytes) {
+  final decoder = img.PngDecoder();
+  final info = decoder.startDecode(bytes);
+  if (info == null || info.width * info.height > 24 * 1024 * 1024) {
+    throw const FormatException('Unsupported live photo still');
+  }
+  final image = decoder.decodeFrame(0);
+  if (image == null) {
+    throw const FormatException('Unsupported live photo still');
+  }
+  return Uint8List.fromList(img.encodeJpg(image, quality: 92));
 }

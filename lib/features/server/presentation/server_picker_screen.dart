@@ -75,6 +75,13 @@ class _ServerPickerScreenState extends ConsumerState<ServerPickerScreen> {
       await store.addServer(target).timeout(const Duration(seconds: 5));
       ensureActive();
     }
+    final remoteName = organization['name'];
+    if (remoteName is String) {
+      await store
+          .updateServerName(target.id, target.baseUrl, remoteName)
+          .timeout(const Duration(seconds: 5));
+      ensureActive();
+    }
     await ref
         .read(accountStoreProvider.notifier)
         .clearCurrentAccount()

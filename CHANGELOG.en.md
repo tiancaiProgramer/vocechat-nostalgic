@@ -1,5 +1,11 @@
 # VoceChat Changelog
 
+## Nostalgic 0.3.33+3119 (2026-10-29, prerelease)
+
+- Add Live Photo preview and confirmed still/MOV pairing, compact chat media, and right-aligned attachment actions. Includes LAN transfer and disk-backed chunked uploads.
+- 713 automated tests passed, 5 skipped. Build3119 has not been installed on a phone. Real Live Photo/HEIC playback, two-Android transfer, and locked/background transfer remain unverified. The earlier large-server-upload failure is not confirmed fixed.
+- [Detailed validation and limitations](docs/releases/3119.md).
+
 Changes since 0.3.29+29, through 0.3.33+33. Dates reflect version commits (UTC+8).
 
 ## 0.3.33 (2026-10-20)

@@ -26,8 +26,11 @@ internal object AppFlutterEngine {
         )
         val incomingShares = IncomingShareBridge(context.applicationContext, engine.dartExecutor.binaryMessenger)
 
+        val localTransfer = LocalTransferBridge(context.applicationContext, engine.dartExecutor.binaryMessenger)
+
         fun dispose() {
             Log.i(TAG, "destroy engine=${System.identityHashCode(engine)}")
+            localTransfer.dispose()
             notifications.dispose()
             incomingShares.dispose()
             externalLinks.dispose()
@@ -51,10 +54,13 @@ internal object AppFlutterEngine {
 
     fun release(activity: MainActivity, changingConfigurations: Boolean) {
         Log.i(TAG, "release activity=${System.identityHashCode(activity)} owner=${ownership.isOwner(activity)} background=${BackgroundMessageService.running}")
-        ownership.release(activity, retain = changingConfigurations || BackgroundMessageService.running)
+        ownership.release(activity, retain = changingConfigurations || BackgroundMessageService.running || LocalTransferService.retained)
     }
 
-    fun serviceStopped() = ownership.releaseIfUnowned()
+    fun serviceStopped() {
+        if (!BackgroundMessageService.running && !LocalTransferService.retained) ownership.releaseIfUnowned()
+    }
+    fun localTransferStopped() = ownership.engine?.localTransfer?.timedOut()
 
     fun notificationTap(intent: Intent?) = ownership.engine?.notifications?.notificationTap(intent)
     fun shareIntent(intent: Intent?) = ownership.engine?.incomingShares?.receive(intent)

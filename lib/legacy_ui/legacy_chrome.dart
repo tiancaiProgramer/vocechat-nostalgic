@@ -12,6 +12,7 @@ import '../features/channels/presentation/create_channel_dialog.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../shared/widgets/voce_avatar.dart';
 import 'legacy_icons.dart';
+import '../core/background/background_preferences.dart';
 
 bool get usesLegacyPhoneLayout =>
     !kIsWeb &&
@@ -131,7 +132,9 @@ class LegacyServerHeader extends ConsumerWidget {
       trailing: PopupMenuButton<String>(
         icon: Icon(AppIcons.add, size: 24, color: AppTokens.zinc500),
         onSelected: (value) {
-          if (value == 'search') {
+          if (value == 'transfer') {
+            context.push('/file-transfer');
+          } else if (value == 'search') {
             context.push('/home/search');
           } else if (value == 'group') {
             showCreateChannelDialog(context);
@@ -143,6 +146,8 @@ class LegacyServerHeader extends ConsumerWidget {
           PopupMenuItem(value: 'group', child: Text(l.chatListNewChat)),
           PopupMenuItem(value: 'dm', child: Text(l.navContacts)),
           PopupMenuItem(value: 'search', child: Text(l.actionSearch)),
+          if (isAndroidBackgroundSupported)
+            PopupMenuItem(value: 'transfer', child: Text(l.localTransferTitle)),
         ],
       ),
     );
@@ -188,7 +193,9 @@ class LegacyServerDrawer extends ConsumerWidget {
             icon: const Icon(Icons.add),
             onSelected: (action) {
               Navigator.pop(context);
-              if (action == 'account') {
+              if (action == 'transfer') {
+                context.push('/file-transfer');
+              } else if (action == 'account') {
                 showAddAccountScreen(context);
               } else {
                 context.push('/server-picker?add=1');
@@ -198,13 +205,10 @@ class LegacyServerDrawer extends ConsumerWidget {
               PopupMenuItem(
                   value: 'account', child: Text(l.accountSwitcherAddAccount)),
               PopupMenuItem(value: 'server', child: Text(l.serverPickerAdd)),
+              if (isAndroidBackgroundSupported)
+                PopupMenuItem(
+                    value: 'transfer', child: Text(l.localTransferTitle)),
             ],
-          ),
-          trailing: IconButton(
-            key: const ValueKey('drawer-close'),
-            tooltip: l.actionClose,
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.pop(context),
           ),
         ),
         Expanded(

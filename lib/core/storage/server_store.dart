@@ -91,6 +91,27 @@ class ServerStore extends _$ServerStore {
     state = AsyncData(current.copyWith(currentServerId: id));
   }
 
+  /// Refresh public display metadata without moving account/token identity.
+  /// Match the address too so an old response cannot rename a replaced entry.
+  Future<void> updateServerName(String id, String baseUrl, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    final current = await future;
+    final normalized = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    final entry = current.servers
+        .where((server) =>
+            server.id == id &&
+            server.baseUrl.trim().replaceAll(RegExp(r'/+$'), '') == normalized)
+        .firstOrNull;
+    if (entry == null || entry.name == trimmed) return;
+    final updated = current.servers
+        .map((server) =>
+            identical(server, entry) ? server.copyWith(name: trimmed) : server)
+        .toList();
+    await _persist(updated, current.currentServerId);
+    state = AsyncData(current.copyWith(servers: updated));
+  }
+
   /// Record only the identity returned by /admin/system/organization. This
   /// must not move the server/account/token namespace used by login responses.
   Future<void> setOrganizationServerId(String id, String organizationId) async {

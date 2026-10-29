@@ -1,9 +1,11 @@
 import '../../../legacy_ui/legacy_chrome.dart';
 import '../../../core/background/background_lifecycle.dart';
+import '../../../core/background/background_preferences.dart';
 import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -46,6 +48,8 @@ import '../application/chat_layout_provider.dart';
 import '../application/chat_tools_provider.dart';
 import '../application/read_index_provider.dart';
 import '../data/message_api.dart';
+import '../data/attachment_preparer.dart';
+import '../data/motion_photo.dart';
 import '../domain/message_models.dart';
 import '../domain/message_status.dart';
 import 'archive_message_content.dart';
@@ -66,8 +70,12 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String id;
   final int? initialMid;
   final String? initialName;
-  const ChatScreen(
-      {super.key, required this.id, this.initialMid, this.initialName});
+  const ChatScreen({
+    super.key,
+    required this.id,
+    this.initialMid,
+    this.initialName,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -230,8 +238,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ..clear()
             ..addAll(draft.mentions);
           _textCtrl.value = TextEditingValue(
-              text: draft.text,
-              selection: TextSelection.collapsed(offset: draft.text.length));
+            text: draft.text,
+            selection: TextSelection.collapsed(offset: draft.text.length),
+          );
           _restoringDraft = false;
         }
       } catch (_) {
@@ -276,8 +285,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ? selection.payload.text
               : '${_textCtrl.text}\n${selection.payload.text}';
           _textCtrl.value = TextEditingValue(
-              text: text,
-              selection: TextSelection.collapsed(offset: text.length));
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
         }
         for (final file in selection.payload.files) {
           try {
@@ -295,10 +305,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             failed = true;
           }
         }
-        if (current() && mounted) {
+        if (current() && mounted && failed) {
           final l = AppL10n.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(failed ? l.shareImportFailed : l.shareStaged)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l.shareImportFailed),
+            ),
+          );
         }
       } finally {
         if (mounted && selected.state?.payload.id == selection.payload.id) {
@@ -520,22 +533,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // 1) Text first (only when non-empty — images can be sent caption-less).
       if (text.isNotEmpty) {
         if (replyMid != null) {
-          await notifier.sendReply(
-            replyMid,
-            text,
-            mentions: mentions,
-          );
+          await notifier.sendReply(replyMid, text, mentions: mentions);
         } else {
           await notifier.sendText(text, mentions: mentions);
         }
       }
       // 2) Then each staged image (each becomes its own optimistic row).
       for (final img in staged) {
-        await notifier.sendImage(
-          bytes: img.bytes,
-          filename: img.filename,
-          contentType: img.contentType,
-        );
+        if (img.file != null) {
+          await notifier.sendFile(
+            file: img.file!,
+            filename: img.filename,
+            contentType: img.contentType,
+          );
+        } else {
+          await notifier.sendImage(
+            bytes: img.bytes!,
+            filename: img.filename,
+            contentType: img.contentType,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -616,35 +633,108 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (result != null) _renameStaged(index, result);
   }
 
-  /// Pick one or more files (any type) via file_picker on every platform and
-  /// STAGE them for preview. Reads bytes in-memory so the clipboard + picker
-  /// paths share one staging entry point.
-  ///
-  /// Guarded by [_pickingFile]: a second tap while the native picker dialog
-  /// is still open would otherwise race a concurrent `pickFiles` call, which
-  /// file_picker surfaces as a `PlatformException(already_active)` on some
-  /// platforms — from the user's perspective the button just "does nothing".
+  /// Stage disk paths, not whole buffers. Android's withData=true duplicates
+  /// the entire selection in Java and Dart before upload can even begin.
   Future<void> _pickAndStageFile() async {
     if (_pickingFile) return;
     setState(() => _pickingFile = true);
     final l = AppL10n.of(context);
+    final target = _target;
+    final account =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    bool current() =>
+        mounted &&
+        target == _target &&
+        account == ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        withData: true,
+        withData: false,
         allowMultiple: true,
       );
-      if (result == null) return;
-      for (final picked in result.files) {
-        final bytes = picked.bytes ??
-            (picked.path != null
-                ? await File(picked.path!).readAsBytes()
-                : null);
-        if (bytes == null || bytes.isEmpty) continue;
-        _stageFile(bytes, picked.name);
+      if (result == null || !current()) return;
+      // A filename match alone must not silently turn an ordinary video into
+      // a Live Photo. Ask only for explicit, unambiguous still/MOV selections.
+      final pairs = <int, int>{};
+      final groups = <String, List<int>>{};
+      for (var i = 0; i < result.files.length; i++) {
+        final name = result.files[i].name;
+        final dot = name.lastIndexOf('.');
+        if (dot > 0) {
+          groups
+              .putIfAbsent(name.substring(0, dot).toLowerCase(), () => [])
+              .add(i);
+        }
+      }
+      for (final indices in groups.values) {
+        if (indices.length != 2) continue;
+        final still = indices
+            .where((i) => const ['jpg', 'jpeg', 'heic', 'heif']
+                .contains(result.files[i].extension?.toLowerCase()))
+            .firstOrNull;
+        final movie = indices
+            .where((i) => result.files[i].extension?.toLowerCase() == 'mov')
+            .firstOrNull;
+        if (still != null && movie != null) pairs[still] = movie;
+      }
+      var combine = false;
+      if (pairs.isNotEmpty) {
+        if (!mounted) return;
+        final choice = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+                    title: Text(l.livePhotoPairTitle),
+                    content: Text(l.livePhotoPairBody),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(l.livePhotoPairSeparate)),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(l.livePhotoPairMerge))
+                    ]));
+        if (choice == null || !current()) return;
+        combine = choice;
+      }
+      final consumed = combine ? pairs.values.toSet() : <int>{};
+      Future<Uint8List> readPhotoResource(PlatformFile item) async {
+        if (item.size > MotionPhoto.maxBytes) throw const FormatException();
+        if (item.path != null) {
+          final file = File(item.path!);
+          if (await file.length() > MotionPhoto.maxBytes) {
+            throw const FormatException();
+          }
+          return file.readAsBytes();
+        }
+        if (item.bytes != null) return item.bytes!;
+        throw const FileSystemException();
+      }
+
+      for (var index = 0; index < result.files.length; index++) {
+        if (consumed.contains(index)) continue;
+        final picked = result.files[index];
+        if (combine && pairs.containsKey(index)) {
+          final prepared = await AttachmentPreparer.prepareLivePhoto(
+              still: await readPhotoResource(picked),
+              movie: await readPhotoResource(result.files[pairs[index]!]),
+              filename: picked.name);
+          if (!current()) return;
+          _stageFile(prepared.bytes, prepared.filename);
+        } else if (picked.path != null) {
+          await _stageDiskFile(
+            File(picked.path!),
+            picked.name,
+            shouldContinue: current,
+          );
+        } else if (picked.bytes != null && current()) {
+          // Web/virtual providers may supply bytes without a local path.
+          _stageFile(picked.bytes!, picked.name);
+        } else {
+          throw const FileSystemException('Selected file is unavailable');
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(safeText(l.chatSendFailed(_friendlyError(e, l)))),
@@ -654,6 +744,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } finally {
       if (mounted) setState(() => _pickingFile = false);
     }
+  }
+
+  Future<void> _stageDiskFile(
+    File file,
+    String filename, {
+    bool Function()? shouldContinue,
+  }) async {
+    final size = await file.length();
+    final reader = await file.open();
+    late Uint8List header;
+    try {
+      header = await reader.read(512);
+    } finally {
+      await reader.close();
+    }
+    if (!mounted || shouldContinue?.call() == false) return;
+    final type = MessageApi.inferContentType(filename, bytes: header);
+    // Keep existing photo conversion/preview behavior. Generic attachments
+    // (including APKs and videos) never materialize their full contents.
+    if (type.startsWith('image/')) {
+      final bytes = await file.readAsBytes();
+      if (mounted && shouldContinue?.call() != false) {
+        _stageFile(bytes, filename);
+      }
+      return;
+    }
+    filename = MessageApi.resolveFilename(
+      filename,
+      bytes: header,
+      contentType: type,
+    );
+    setState(
+      () => _staged.add(
+        _StagedFile(
+          file: file,
+          fileSize: size,
+          filename: filename,
+          contentType: type,
+        ),
+      ),
+    );
+    _recomputeCanSend();
   }
 
   bool _showingAttachmentSheet = false;
@@ -686,6 +818,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           }
         case _AttachmentOpenFilePicker():
           await _pickAndStageFile();
+        case _AttachmentQuickTransfer(paths: final paths):
+          if (mounted) await context.push('/file-transfer', extra: paths);
       }
     } finally {
       _showingAttachmentSheet = false;
@@ -726,12 +860,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final l = AppL10n.of(context);
     try {
       for (final file in files) {
-        final bytes = await file.readAsBytes();
-        if (bytes.isEmpty) continue;
         final name = file.name.isNotEmpty
             ? file.name
             : (file.path.split(RegExp(r'[\\/]')).lastOrNull ?? 'file');
-        _stageFile(bytes, name);
+        await _stageDiskFile(File(file.path), name);
       }
     } catch (e) {
       if (mounted) {
@@ -1077,8 +1209,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _closeMentionOverlay();
     _composerFocusNode.unfocus();
     try {
-      final picked =
-          await showComposerEmojiPicker(context, accountId: accountId);
+      final picked = await showComposerEmojiPicker(
+        context,
+        accountId: accountId,
+      );
       if (!mounted ||
           target != _target ||
           picked == null ||
@@ -1088,8 +1222,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
       if (picked is StickerEmojiSelection) {
         if (accountId == null) return;
-        final store =
-            await ref.read(customStickerStoreProvider(accountId).future);
+        final store = await ref.read(
+          customStickerStoreProvider(accountId).future,
+        );
         final bytes = await store.read(picked.sticker);
         if (!mounted ||
             target != _target ||
@@ -1099,9 +1234,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         }
         // Send independently: text, staged attachments and the reply draft stay intact.
         await ref.read(chatControllerProvider(target).notifier).sendImage(
-            bytes: bytes,
-            filename: picked.sticker.filename,
-            contentType: picked.sticker.contentType);
+              bytes: bytes,
+              filename: picked.sticker.filename,
+              contentType: picked.sticker.contentType,
+            );
         return;
       }
       final emoji = (picked as TextEmojiSelection).emoji;
@@ -1121,8 +1257,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted &&
           accountId ==
               ref.read(accountStoreProvider).valueOrNull?.currentAccountId) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(stickerErrorLabel(AppL10n.of(context), error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(stickerErrorLabel(AppL10n.of(context), error)),
+          ),
+        );
       }
     } finally {
       _pickingEmoji = false;
@@ -1193,7 +1332,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ref.listen(draftSaveFailedProvider(account), (before, failed) {
         if (failed && before != true && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(AppL10n.of(context).draftSaveFailed)));
+            SnackBar(content: Text(AppL10n.of(context).draftSaveFailed)),
+          );
         }
       });
     }
@@ -1455,8 +1595,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   : (_isMobile
                                       ? _showAttachmentSheet
                                       : _pickAndStageFile),
-                              onFileAttach:
-                                  _pickingFile ? null : _pickAndStageFile,
                               onPasteImage: _pasteFromClipboard,
                               staged: _staged,
                               onRemoveStaged: _removeStaged,
@@ -2627,8 +2765,11 @@ class _MessageRowState extends ConsumerState<MessageRow> {
           icon: Icons.push_pin_outlined,
         ),
       if (stickerPathForMessage(msg) != null)
-        VoceContextMenuItem('sticker', l.stickerAddFromChat,
-            icon: Icons.add_reaction_outlined),
+        VoceContextMenuItem(
+          'sticker',
+          l.stickerAddFromChat,
+          icon: Icons.add_reaction_outlined,
+        ),
       VoceContextMenuItem('fav', l.chatToolSaved, icon: Icons.bookmark_outline),
       if (isMine)
         VoceContextMenuItem(
@@ -2694,8 +2835,12 @@ class _MessageRowState extends ConsumerState<MessageRow> {
     _savingSticker = true;
     final l = AppL10n.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final notice = messenger.showSnackBar(SnackBar(
-        content: Text(l.stickerSaving), duration: const Duration(seconds: 30)));
+    final notice = messenger.showSnackBar(
+      SnackBar(
+        content: Text(l.stickerSaving),
+        duration: const Duration(seconds: 30),
+      ),
+    );
     final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 15)));
     bool isCurrent() =>
         mounted &&
@@ -2706,8 +2851,9 @@ class _MessageRowState extends ConsumerState<MessageRow> {
           await ref.read(secureTokenStoreProvider(accountId)).readTokens();
       if (!isCurrent()) return;
       if (tokens != null &&
-          tokens.expiresAt
-              .isBefore(DateTime.now().add(const Duration(seconds: 30)))) {
+          tokens.expiresAt.isBefore(
+            DateTime.now().add(const Duration(seconds: 30)),
+          )) {
         await ref.read(authControllerProvider.notifier).renewIfPossible();
         if (!isCurrent()) return;
         tokens =
@@ -2717,10 +2863,11 @@ class _MessageRowState extends ConsumerState<MessageRow> {
       Uint8List bytes;
       try {
         bytes = await downloadStickerOriginal(
-            dio: dio,
-            baseUrl: server.baseUrl,
-            accessToken: tokens.accessToken,
-            resourcePath: path);
+          dio: dio,
+          baseUrl: server.baseUrl,
+          accessToken: tokens.accessToken,
+          resourcePath: path,
+        );
       } on DioException catch (error) {
         if (error.response?.statusCode != 401 || !isCurrent()) rethrow;
         final renewed =
@@ -2732,29 +2879,40 @@ class _MessageRowState extends ConsumerState<MessageRow> {
           throw const StickerException(StickerFailure.download);
         }
         bytes = await downloadStickerOriginal(
-            dio: dio,
-            baseUrl: server.baseUrl,
-            accessToken: tokens.accessToken,
-            resourcePath: path);
+          dio: dio,
+          baseUrl: server.baseUrl,
+          accessToken: tokens.accessToken,
+          resourcePath: path,
+        );
       }
       if (!isCurrent()) return;
       final result =
           await ref.read(customStickersProvider(accountId).notifier).add(bytes);
       notice.close();
       if (isCurrent()) {
-        messenger.showSnackBar(SnackBar(
-            content:
-                Text(result.added ? l.stickerAdded : l.stickerAlreadySaved)));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              result.added ? l.stickerAdded : l.stickerAlreadySaved,
+            ),
+          ),
+        );
       }
     } catch (error) {
       notice.close();
       if (isCurrent()) {
-        messenger.showSnackBar(SnackBar(
-            content: Text(stickerErrorLabel(
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              stickerErrorLabel(
                 l,
                 error is DioException
                     ? const StickerException(StickerFailure.download)
-                    : error))));
+                    : error,
+              ),
+            ),
+          ),
+        );
       }
     } finally {
       notice.close();
@@ -3067,7 +3225,6 @@ class _SendBox extends StatelessWidget {
     required this.onSend,
     required this.placeholder,
     this.onAttach,
-    this.onFileAttach,
     this.onPasteImage,
     this.staged = const [],
     this.onRemoveStaged,
@@ -3094,7 +3251,6 @@ class _SendBox extends StatelessWidget {
 
   /// Open the image/file picker.
   final VoidCallback? onAttach;
-  final VoidCallback? onFileAttach;
 
   /// Attempt to paste an image from the clipboard. Returns true if an image
   /// was found and staged (so the default text paste should be suppressed).
@@ -3197,14 +3353,10 @@ class _SendBox extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _SendIcon(
-                    icon: Icons.image,
-                    tooltip: AppL10n.of(context).chatAttach,
-                    onTap: onAttach),
-                const SizedBox(width: 8),
-                _SendIcon(
-                    icon: Icons.folder,
-                    tooltip: AppL10n.of(context).chatAttach,
-                    onTap: onFileAttach ?? onAttach),
+                  icon: Icons.attach_file,
+                  tooltip: AppL10n.of(context).chatAttach,
+                  onTap: onAttach,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: ConstrainedBox(
@@ -3329,6 +3481,11 @@ class _AttachmentImagesResult extends _AttachmentPickResult {
   final List<_StagedImage> images;
 }
 
+class _AttachmentQuickTransfer extends _AttachmentPickResult {
+  const _AttachmentQuickTransfer(this.paths);
+  final List<String> paths;
+}
+
 class _AttachmentOpenFilePicker extends _AttachmentPickResult {
   const _AttachmentOpenFilePicker();
 }
@@ -3400,6 +3557,29 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     if (!_sending) Navigator.of(context).pop(const _AttachmentOpenFilePicker());
   }
 
+  Future<void> _openQuickTransfer() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final paths = <String>[];
+      final selected = _assets.where((a) => _selectedIds.contains(a.id));
+      if (selected.length > 16) throw const FormatException();
+      for (final asset in selected) {
+        final file = await asset.originFile;
+        if (file == null) throw const FileSystemException();
+        paths.add(file.path);
+      }
+      if (mounted) Navigator.of(context).pop(_AttachmentQuickTransfer(paths));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   Future<void> _openCamera({required bool video}) async {
     if (_sending) return;
     setState(() => _sending = true);
@@ -3413,11 +3593,14 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
       final bytes = await picked.readAsBytes();
       if (!mounted) return;
       if (bytes.isEmpty) throw const FormatException('Empty camera result');
-      Navigator.of(context).pop(_AttachmentImagesResult([
-        _StagedImage(
+      Navigator.of(context).pop(
+        _AttachmentImagesResult([
+          _StagedImage(
             bytes: bytes,
-            filename: MessageApi.resolveFilename(picked.name, bytes: bytes)),
-      ]));
+            filename: MessageApi.resolveFilename(picked.name, bytes: bytes),
+          ),
+        ]),
+      );
     } catch (error) {
       if (mounted) {
         final denied = error is PlatformException &&
@@ -3425,10 +3608,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                 error.code.toLowerCase().contains('restricted'));
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(
-              content: Text(denied
-                  ? l.chatRecordingPermissionDenied
-                  : l.chatCaptureFailed)));
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                denied ? l.chatRecordingPermissionDenied : l.chatCaptureFailed,
+              ),
+            ),
+          );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -3457,16 +3643,37 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
       final selected = _assets.where((a) => _selectedIds.contains(a.id));
       final images = <_StagedImage>[];
       for (final asset in selected) {
-        final bytes = asset.type == AssetType.video
-            ? await (await asset.originFile)?.readAsBytes()
+        // Android content-provider transcoding may omit the movie from
+        // originBytes; read the selected original file whenever available.
+        final original = await asset.originFile;
+        Uint8List? bytes = original != null
+            ? await original.readAsBytes()
             : await asset.originBytes;
+        var filename = asset.title ?? 'image';
+        if (!kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.iOS ||
+                defaultTargetPlatform == TargetPlatform.macOS) &&
+            asset.isLivePhoto) {
+          final movie = await asset.originFileWithSubtype;
+          if (movie == null ||
+              await movie.length() > MotionPhoto.maxBytes ||
+              bytes == null) {
+            throw const FileSystemException();
+          }
+          final prepared = await AttachmentPreparer.prepareLivePhoto(
+              still: bytes,
+              movie: await movie.readAsBytes(),
+              filename: filename);
+          bytes = prepared.bytes;
+          filename = prepared.filename;
+        }
         if (bytes == null || bytes.isEmpty) {
           throw const FileSystemException('Selected media is unavailable');
         }
         images.add(
           _StagedImage(
             bytes: bytes,
-            filename: MessageApi.resolveFilename(asset.title, bytes: bytes),
+            filename: MessageApi.resolveFilename(filename, bytes: bytes),
           ),
         );
       }
@@ -3474,7 +3681,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)));
+          SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -3496,45 +3704,60 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Text(
-                    l.chatAttach,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppTokens.textHeading,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: _openFiles,
-                    icon: const Icon(Icons.folder_outlined, size: 18),
-                    label: Text(l.chatAttachOpenFiles),
-                  ),
-                ],
-              ),
+              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                Expanded(
+                    child: Text(l.chatAttach,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppTokens.textHeading))),
+                const SizedBox(width: 8),
+                Expanded(
+                    flex: 4,
+                    child: Wrap(alignment: WrapAlignment.end, children: [
+                      if (isAndroidBackgroundSupported)
+                        TextButton.icon(
+                            key: const ValueKey('attachment-quick-transfer'),
+                            onPressed: _sending ? null : _openQuickTransfer,
+                            icon: const Icon(Icons.swap_horiz, size: 18),
+                            label: Text(l.localTransferQuick)),
+                      TextButton.icon(
+                          onPressed: _openFiles,
+                          icon: const Icon(Icons.folder_outlined, size: 18),
+                          label: Text(l.chatAttachOpenFiles)),
+                    ])),
+              ]),
               const SizedBox(height: 12),
               Expanded(
                 child: _permissionDenied || _loading
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                            SizedBox(
-                                width: 112, height: 112, child: _cameraTile(l)),
-                            Expanded(
-                                child: Center(
-                                    child: _loading
-                                        ? const CircularProgressIndicator()
-                                        : Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Text(
-                                                l.chatPhotoPermissionDenied,
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                    color:
-                                                        AppTokens.gray500))))),
-                          ])
+                          SizedBox(
+                            width: 112,
+                            height: 112,
+                            child: _cameraTile(l),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: _loading
+                                  ? const CircularProgressIndicator()
+                                  : Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Text(
+                                        l.chatPhotoPermissionDenied,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: AppTokens.gray500,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      )
                     : GridView.builder(
                         padding: EdgeInsets.zero,
                         gridDelegate:
@@ -3548,9 +3771,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                           if (index == 0) return _cameraTile(l);
                           final asset = _assets[index - 1];
                           return _PhotoTile(
-                              asset: asset,
-                              selected: _selectedIds.contains(asset.id),
-                              onTap: () => _toggleSelect(asset));
+                            asset: asset,
+                            selected: _selectedIds.contains(asset.id),
+                            onTap: () => _toggleSelect(asset),
+                          );
                         },
                       ),
               ),
@@ -3573,12 +3797,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
 }
 
 class _CameraTile extends StatelessWidget {
-  const _CameraTile(
-      {required this.label,
-      required this.hint,
-      required this.onTap,
-      required this.onLongPress,
-      required this.busy});
+  const _CameraTile({
+    required this.label,
+    required this.hint,
+    required this.onTap,
+    required this.onLongPress,
+    required this.busy,
+  });
   final String label;
   final String hint;
   final VoidCallback? onTap;
@@ -3596,25 +3821,38 @@ class _CameraTile extends StatelessWidget {
         onLongPress: onLongPress,
         child: Container(
           decoration: BoxDecoration(
-              color: AppTokens.gray100, borderRadius: BorderRadius.circular(8)),
+            color: AppTokens.gray100,
+            borderRadius: BorderRadius.circular(8),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            busy
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.camera_alt_outlined, color: AppTokens.gray600),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(fontSize: 12, color: AppTokens.gray600)),
-            const SizedBox(height: 2),
-            Text(hint,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              busy
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.camera_alt_outlined, color: AppTokens.gray600),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: AppTokens.gray600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hint,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 style: TextStyle(
-                    fontSize: 10, height: 1.2, color: AppTokens.gray500)),
-          ]),
+                  fontSize: 10,
+                  height: 1.2,
+                  color: AppTokens.gray500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3649,22 +3887,27 @@ class _PhotoTile extends StatelessWidget {
           ),
           if (asset.type == AssetType.video)
             Positioned(
-                left: 4,
-                bottom: 4,
-                child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.videocam, color: Colors.white, size: 14),
-                      const SizedBox(width: 3),
-                      Text(
-                          '${asset.duration ~/ 60}:${(asset.duration % 60).toString().padLeft(2, '0')}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 11)),
-                    ]))),
+              left: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.videocam, color: Colors.white, size: 14),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${asset.duration ~/ 60}:${(asset.duration % 60).toString().padLeft(2, '0')}',
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Positioned(
             top: 4,
             right: 4,
@@ -3883,18 +4126,22 @@ class _VoiceRecordSheetState extends State<_VoiceRecordSheet> {
 /// One staged-but-not-yet-sent image awaiting send.
 class _StagedFile {
   _StagedFile({
-    required this.bytes,
+    this.bytes,
+    this.file,
+    this.fileSize,
     required this.filename,
     required this.contentType,
-  });
+  }) : assert(bytes != null || file != null);
 
-  final Uint8List bytes;
+  final Uint8List? bytes;
+  final File? file;
+  final int? fileSize;
 
   /// Mutable so the rename dialog can update it in place.
   String filename;
   final String contentType;
 
-  int get size => bytes.length;
+  int get size => fileSize ?? bytes!.length;
   bool get isImage => contentType.startsWith('image/');
 }
 
@@ -3921,7 +4168,7 @@ class _StagedPreviewRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: SizedBox(
-        height: 138,
+        height: 146,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: staged.length,
@@ -3970,12 +4217,14 @@ class _StagedFileCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: file.isImage
+                  child: file.isImage && file.bytes != null
                       ? Image.memory(
-                          file.bytes,
+                          file.bytes!,
                           width: thumbSize,
                           height: thumbSize,
                           fit: BoxFit.cover,
+                          cacheWidth: 240,
+                          cacheHeight: 240,
                           errorBuilder: (context, error, stackTrace) =>
                               Container(
                             width: thumbSize,
@@ -4240,11 +4489,7 @@ class _EditForm extends StatelessWidget {
 // Flat gray icon used inside the send pill. No ripple box, tight hit area
 // (28px) so the icons sit close together like the web toolbar.
 class _SendIcon extends StatelessWidget {
-  const _SendIcon({
-    required this.icon,
-    required this.tooltip,
-    this.onTap,
-  });
+  const _SendIcon({required this.icon, required this.tooltip, this.onTap});
 
   final IconData icon;
   final String tooltip;
