@@ -14,16 +14,19 @@ class SharedFile {
 }
 
 class IncomingShare {
-  const IncomingShare(
-      {required this.id,
-      required this.text,
-      required this.files,
-      this.loading = false,
-      this.error = ''});
+  const IncomingShare({
+    required this.id,
+    required this.text,
+    required this.files,
+    this.prepared = true,
+    this.loading = false,
+    this.error = '',
+  });
   final String id, text, error;
   final List<SharedFile> files;
-  final bool loading;
+  final bool loading, prepared;
   bool get hasContent => text.trim().isNotEmpty || files.isNotEmpty;
+  bool get canChoose => !loading && hasContent && error.isEmpty;
 
   factory IncomingShare.fromMap(Map<dynamic, dynamic> data) {
     final id = data['id'] as String;
@@ -33,6 +36,7 @@ class IncomingShare {
       throw const FormatException('Invalid share');
     }
     final files = <SharedFile>[];
+    final prepared = data['prepared'] != false;
     var total = 0;
     for (final raw in data['files'] as List? ?? const []) {
       final row = raw as Map;
@@ -40,22 +44,25 @@ class IncomingShare {
       final name = row['name'] as String;
       final path = row['path'] as String;
       total += size;
-      if (size <= 0 ||
-          size > 32 * 1024 * 1024 ||
-          total > 64 * 1024 * 1024 ||
+      if (size < 0 ||
+          (prepared && size == 0) ||
+          size > (1 << 40) ||
+          total > (1 << 40) ||
           files.length >= 16 ||
           name.isEmpty ||
-          path.isEmpty) {
+          (prepared && path.isEmpty)) {
         throw const FormatException('Invalid shared files');
       }
       files.add(SharedFile(path, name, row['mime'] as String? ?? '', size));
     }
     return IncomingShare(
-        id: id,
-        text: text,
-        files: List.unmodifiable(files),
-        loading: data['loading'] == true,
-        error: data['error'] as String? ?? '');
+      id: id,
+      text: text,
+      files: List.unmodifiable(files),
+      prepared: prepared,
+      loading: data['loading'] == true,
+      error: data['error'] as String? ?? '',
+    );
   }
 }
 
@@ -65,16 +72,26 @@ class IncomingShareSelection {
   final IncomingShare payload;
 }
 
-final incomingShareChannelProvider =
-    Provider((ref) => const MethodChannel('vocechat/incoming_share'));
+class IncomingTransferSelection {
+  const IncomingTransferSelection(this.accountId, this.payload);
+  final String accountId;
+  final IncomingShare payload;
+}
+
+final incomingShareChannelProvider = Provider(
+  (ref) => const MethodChannel('vocechat/incoming_share'),
+);
 final incomingShareSupportedProvider = Provider(
-    (ref) => !kIsWeb && defaultTargetPlatform == TargetPlatform.android);
-final selectedIncomingShareProvider =
-    StateProvider<IncomingShareSelection?>((ref) => null);
+  (ref) => !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+);
+final selectedIncomingShareProvider = StateProvider<IncomingShareSelection?>(
+  (ref) => null,
+);
 final incomingSharesProvider =
     NotifierProvider<IncomingShares, List<IncomingShare>>(IncomingShares.new);
 final pendingIncomingShareProvider = Provider<IncomingShare?>(
-    (ref) => ref.watch(incomingSharesProvider).firstOrNull);
+  (ref) => ref.watch(incomingSharesProvider).firstOrNull,
+);
 Object? _channelOwner;
 
 class IncomingShares extends Notifier<List<IncomingShare>> {
@@ -100,16 +117,17 @@ class IncomingShares extends Notifier<List<IncomingShare>> {
       unawaited(Future<void>.microtask(refresh));
     }
     ref.listen(
-        accountStoreProvider.select((s) => s.valueOrNull?.currentAccountId),
-        (before, next) {
-      if (before != null && before != next) {
-        final selection = ref.read(selectedIncomingShareProvider);
-        if (selection != null) {
-          ref.read(selectedIncomingShareProvider.notifier).state = null;
-          unawaited(ack(selection.payload.id));
+      accountStoreProvider.select((s) => s.valueOrNull?.currentAccountId),
+      (before, next) {
+        if (before != null && before != next) {
+          final selection = ref.read(selectedIncomingShareProvider);
+          if (selection != null) {
+            ref.read(selectedIncomingShareProvider.notifier).state = null;
+            unawaited(ack(selection.payload.id));
+          }
         }
-      }
-    });
+      },
+    );
     ref.onDispose(() {
       _disposed = true;
       if (supported && identical(_channelOwner, owner)) {
@@ -151,15 +169,34 @@ class IncomingShares extends Notifier<List<IncomingShare>> {
     state = state.where((p) => p.id != id).toList();
   }
 
+  Future<IncomingShare> prepare(String id, {required bool forTransfer}) async {
+    final packet = await ref
+        .read(incomingShareChannelProvider)
+        .invokeMapMethod<dynamic, dynamic>('prepare', {
+      'id': id,
+      'mode': forTransfer ? 'transfer' : 'chat',
+    });
+    if (packet == null || _disposed || _held.contains(id)) {
+      throw const FormatException('Share is no longer available');
+    }
+    final share = IncomingShare.fromMap(packet);
+    if (share.id != id) throw const FormatException('Unexpected share');
+    state = [
+      for (final item in state)
+        if (item.id == id) share else item,
+    ];
+    return share;
+  }
+
   Future<void> ack(String id) async {
     if (_disposed) {
       return;
     }
     hold(id);
     try {
-      await ref
-          .read(incomingShareChannelProvider)
-          .invokeMethod<void>('ack', {'id': id});
+      await ref.read(incomingShareChannelProvider).invokeMethod<void>('ack', {
+        'id': id,
+      });
     } catch (_) {
       // Native imports also have a TTL cleanup.
     }

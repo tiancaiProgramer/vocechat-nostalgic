@@ -6,8 +6,12 @@ import 'package:image/image.dart' as img;
 import 'motion_photo.dart';
 
 class PreparedAttachment {
-  const PreparedAttachment(this.bytes, this.filename, this.contentType,
-      {this.isMotionPhoto = false});
+  const PreparedAttachment(
+    this.bytes,
+    this.filename,
+    this.contentType, {
+    this.isMotionPhoto = false,
+  });
 
   final Uint8List bytes;
   final String filename;
@@ -19,6 +23,24 @@ class PreparedAttachment {
 /// a HEIC file alone does not make its bytes readable by the server or clients.
 class AttachmentPreparer {
   static const _channel = MethodChannel('vocechat/image_conversion');
+
+  static bool requiresConversion(
+    List<int> prefix,
+    String filename,
+    String? contentType,
+  ) {
+    final extension = filename.split('.').last.toLowerCase();
+    final type = contentType?.split(';').first.trim().toLowerCase();
+    return extension == 'heic' ||
+        extension == 'heif' ||
+        const {
+          'image/heic',
+          'image/heif',
+          'image/heic-sequence',
+          'image/heif-sequence',
+        }.contains(type) ||
+        _isHeif(Uint8List.fromList(prefix));
+  }
 
   static Future<PreparedAttachment> prepare({
     required Uint8List bytes,
@@ -36,22 +58,33 @@ class AttachmentPreparer {
     final appleBytes = _isHeif(bytes);
     if (motion != null && appleBytes) {
       return prepareLivePhoto(
-          still: Uint8List.sublistView(bytes, 0, motion.stillLength),
-          movie: Uint8List.sublistView(
-              bytes, motion.offset, motion.offset + motion.length),
-          filename: filename);
+        still: Uint8List.sublistView(bytes, 0, motion.stillLength),
+        movie: Uint8List.sublistView(
+          bytes,
+          motion.offset,
+          motion.offset + motion.length,
+        ),
+        filename: filename,
+      );
     }
     if (!appleName && !appleType && !appleBytes) {
-      return PreparedAttachment(bytes, filename, contentType,
-          isMotionPhoto: motion != null);
+      return PreparedAttachment(
+        bytes,
+        filename,
+        contentType,
+        isMotionPhoto: motion != null,
+      );
     }
 
     // Some pickers already transcode the bytes but retain the original name.
     final existingFormat = _commonFormat(bytes);
     if (existingFormat != null) {
       return PreparedAttachment(
-          bytes, _rename(filename, existingFormat.$1), existingFormat.$2,
-          isMotionPhoto: motion != null);
+        bytes,
+        _rename(filename, existingFormat.$1),
+        existingFormat.$2,
+        isMotionPhoto: motion != null,
+      );
     }
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
@@ -68,13 +101,15 @@ class AttachmentPreparer {
     try {
       final frame = await codec.getNextFrame();
       try {
-        final png =
-            await frame.image.toByteData(format: ui.ImageByteFormat.png);
+        final png = await frame.image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
         if (png == null) throw StateError('Could not convert the photo to PNG');
         return PreparedAttachment(
-            png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
-            _rename(filename, 'png'),
-            'image/png');
+          png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
+          _rename(filename, 'png'),
+          'image/png',
+        );
       } finally {
         frame.image.dispose();
       }
@@ -102,9 +137,12 @@ class AttachmentPreparer {
         ? prepared.bytes
         : await compute(_pngToJpeg, prepared.bytes);
     final name = _rename(prepared.filename, 'jpg');
-    return PreparedAttachment(MotionPhoto.combineJpeg(jpeg, movie),
-        '${name.substring(0, name.length - 4)}_MP.jpg', 'image/jpeg',
-        isMotionPhoto: true);
+    return PreparedAttachment(
+      MotionPhoto.combineJpeg(jpeg, movie),
+      '${name.substring(0, name.length - 4)}_MP.jpg',
+      'image/jpeg',
+      isMotionPhoto: true,
+    );
   }
 
   static String _rename(String name, String extension) {
@@ -145,18 +183,20 @@ class AttachmentPreparer {
     }
     // AVIF shares the mif1 container brand but is not an Apple HEIF photo.
     if (brands.contains('avif') || brands.contains('avis')) return false;
-    return brands.any(const {
-      'heic',
-      'heix',
-      'hevc',
-      'hevx',
-      'heim',
-      'heis',
-      'hevm',
-      'hevs',
-      'mif1',
-      'msf1'
-    }.contains);
+    return brands.any(
+      const {
+        'heic',
+        'heix',
+        'hevc',
+        'hevx',
+        'heim',
+        'heis',
+        'hevm',
+        'hevs',
+        'mif1',
+        'msf1',
+      }.contains,
+    );
   }
 }
 

@@ -1513,7 +1513,7 @@ class AppL10nZh extends AppL10n {
   String get shareTitle => '分享到怀旧版';
 
   @override
-  String get shareChooseTarget => '选择会话，内容将放入输入框，确认后再发送。';
+  String get shareChooseTarget => '选择文件传输，或选择会话并在输入框中确认后发送。';
 
   @override
   String get shareNoConversations => '暂无可选会话，请先建立聊天后再分享。';
@@ -1522,7 +1522,13 @@ class AppL10nZh extends AppL10n {
   String get shareImportFailed => '部分分享文件无法读取，请重新分享。';
 
   @override
-  String get shareTooLarge => '分享文件过大：单个最多32 MiB，总计64 MiB，最多16个文件。';
+  String get shareTooLarge => '分享文件超出支持的范围。';
+
+  @override
+  String get shareTooMany => '一次最多分享16个文件，请减少选择后重试。';
+
+  @override
+  String get shareTransferHint => '带入文件传输待发送区，选择设备并确认后再发送。';
 
   @override
   String get shareReceiveFailed => '无法接收分享内容，请重新分享。';
@@ -1617,7 +1623,7 @@ class AppL10nZh extends AppL10n {
   String get localTransferTitle => '文件传输';
 
   @override
-  String get localTransferQuick => '快传';
+  String get localTransferQuick => '互传';
 
   @override
   String get localTransferDescription => '通过局域网直接传输。两台设备都需打开此页面，文件只在这两台设备之间传输。';
@@ -1724,7 +1730,44 @@ class AppL10nZh extends AppL10n {
   String get localTransferReceived => '本机已接收';
 
   @override
-  String get localTransferSave => '保存到手机';
+  String get localTransferSave => '另存';
+
+  @override
+  String get localTransferReceivedHint => '文件已保存在下方位置，另存可移动到其他文件夹。';
+
+  @override
+  String get localTransferStorageSettings => '接收设置';
+
+  @override
+  String get localTransferStorageHint =>
+      '图片与其他文件可分别选择文件夹，仅用于之后新接收的文件。现有文件保留原位置。';
+
+  @override
+  String get localTransferImageFolder => '图片目录';
+
+  @override
+  String get localTransferFileFolder => '文件目录';
+
+  @override
+  String get localTransferPrivateStorage => '应用内存储';
+
+  @override
+  String get localTransferChooseFolder => '选择文件夹';
+
+  @override
+  String get localTransferResetFolder => '恢复默认目录';
+
+  @override
+  String get localTransferStorageError => '无法使用该目录，请重新选择并授权。';
+
+  @override
+  String get localTransferStorageFallback => '自定义目录不可用，文件已保留在应用内，可另存。';
+
+  @override
+  String get localTransferNearbyShort => '连接同一 Wi-Fi，双方打开此页即可传输。';
+
+  @override
+  String get localTransferSavedAs => '已另存到所选位置';
 
   @override
   String get localTransferLeaveTitle => '停止当前传输？';

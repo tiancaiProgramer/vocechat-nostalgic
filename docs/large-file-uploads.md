@@ -1,4 +1,4 @@
-# Large file attachments (3117)
+# Large file attachments (3117, updated in r2)
 
 The previous file-picker flow requested `withData: true`, retained a complete
 attachment buffer, tried to image-decode even non-image attachments, and sent
@@ -21,10 +21,15 @@ a fresh file ID; uncertain append requests are not automatically replayed.
 Account/controller disposal, message deletion, and expiry cancel pending work.
 
 The original file-picker cache must remain available for retry. Pending file
-paths are not persisted across app restarts. Large image originals still use
-the preexisting photo conversion path; this change is not an image-size-limit
-or image-decoding redesign. Gallery/camera acquisition and system sharing keep
-their existing behavior and limits.
+paths are not persisted across app restarts. In r2, disk-backed images, videos,
+and external shares also retain paths instead of complete attachment buffers.
+External content URIs are copied into private cache after choosing a target;
+chat drafts detach their cache files from the native share lease. Failed uploads
+retain owned files for retry; successful or discarded uploads release them.
+The old 32 MiB per-file / 64 MiB combined share limits are removed. Sharing still
+allows at most 16 files, has a 1 TiB sanity bound, and needs enough free disk space.
+HEIC conversion keeps its separate 64 MiB decoding bound. Camera, clipboard,
+and voice buffers retain their acquisition-specific behavior.
 
 Protocol reference:
 https://github.com/Privoce/vocechat-server-rust/blob/master/src/api/resource.rs

@@ -17,6 +17,7 @@ import '../../../features/auth/application/auth_controller.dart';
 import 'burn_after_read_provider.dart';
 import '../data/message_api.dart';
 import '../data/attachment_preparer.dart';
+import '../data/disk_attachment.dart';
 import '../data/message_cache.dart';
 import '../domain/message_models.dart';
 import '../domain/message_status.dart';
@@ -156,7 +157,7 @@ class ChatController extends _$ChatController {
       _seenMids.remove(m.mid);
       _statuses.remove(m.mid);
       _localAttachments.remove(m.mid);
-      _pendingFiles.remove(m.mid)?.cancel.cancel();
+      _pendingFiles.remove(m.mid)?.release(cancelUpload: true);
       _progress.remove(m.mid);
       _localOrderAnchors.remove(m.mid);
       _cache?.deleteMid(target, m.mid);
@@ -348,7 +349,7 @@ class ChatController extends _$ChatController {
             // The server row carries a real resource path now; drop the local
             // preview bytes + pending-retry entry + progress for the placeholder.
             _localAttachments.remove(placeholderMid);
-            _pendingFiles.remove(placeholderMid);
+            _pendingFiles.remove(placeholderMid)?.release();
             _progress.remove(placeholderMid);
             _cache?.deleteMid(target, placeholderMid);
           }
@@ -436,7 +437,7 @@ class ChatController extends _$ChatController {
     _statuses.clear();
     _localAttachments.clear();
     for (final pending in _pendingFiles.values) {
-      pending.cancel.cancel();
+      pending.release(cancelUpload: true);
     }
     _pendingFiles.clear();
     _progress.clear();
@@ -449,7 +450,7 @@ class ChatController extends _$ChatController {
       _pendingIncoming.clear();
       _pendingApply.clear();
       for (final pending in _pendingFiles.values) {
-        pending.cancel.cancel();
+        pending.release(cancelUpload: true);
       }
       lifecycle.dispose();
     });
@@ -692,7 +693,7 @@ class ChatController extends _$ChatController {
     _seenMids.remove(targetMid);
     _statuses.remove(targetMid);
     _localAttachments.remove(targetMid);
-    _pendingFiles.remove(targetMid)?.cancel.cancel();
+    _pendingFiles.remove(targetMid)?.release(cancelUpload: true);
     _progress.remove(targetMid);
     _localOrderAnchors.remove(targetMid);
     _persist();
@@ -910,8 +911,14 @@ class ChatController extends _$ChatController {
     required File file,
     required String filename,
     String? contentType,
+    bool ownsFile = false,
   }) =>
-      _sendAttachment(file: file, filename: filename, contentType: contentType);
+      _sendAttachment(
+        file: file,
+        filename: filename,
+        contentType: contentType,
+        ownsFile: ownsFile,
+      );
 
   /// Send audio recorded by the client as a voice message. Selecting an audio
   /// file still uses [sendImage] and preserves the ordinary attachment style.
@@ -932,6 +939,7 @@ class ChatController extends _$ChatController {
     required String filename,
     String? contentType,
     bool isVoiceMessage = false,
+    bool ownsFile = false,
   }) async {
     final generation = _generation;
     final currentUid = _currentUid() ?? -1;
@@ -953,6 +961,33 @@ class ChatController extends _$ChatController {
       bytes = prepared.bytes;
       filename = prepared.filename;
       contentType = prepared.contentType;
+    }
+    if (file != null) {
+      final original = file;
+      late final PreparedDiskAttachment prepared;
+      try {
+        prepared = await prepareDiskAttachment(
+          file,
+          filename,
+          contentType: contentType,
+        );
+      } catch (_) {
+        if (ownsFile) await discardOwnedAttachment(original);
+        rethrow;
+      }
+      if (generation != _generation) {
+        if (ownsFile) await discardOwnedAttachment(original);
+        if (prepared.temporary) await discardOwnedAttachment(prepared.file);
+        return;
+      }
+      if (prepared.file.path != original.path && ownsFile) {
+        await discardOwnedAttachment(original);
+      }
+      file = prepared.file;
+      ownsFile = ownsFile || prepared.temporary;
+      filename = prepared.filename;
+      contentType = prepared.contentType;
+      isMotionPhoto = prepared.isMotionPhoto;
     }
     final resolvedType =
         contentType ?? MessageApi.inferContentType(filename, bytes: bytes);
@@ -997,6 +1032,7 @@ class ChatController extends _$ChatController {
     _pendingFiles[tempMid] = _PendingFile(
       bytes: bytes,
       file: file,
+      ownsFile: ownsFile,
       filename: filename,
       contentType: resolvedType,
       isVoiceMessage: isVoiceMessage,
@@ -1067,6 +1103,7 @@ class ChatController extends _$ChatController {
       // (tap-to-fullscreen, thumbnail, etc.). The brief thumbnail load is
       // covered by _ImageBubble's own spinner placeholder.
       if (generation != _generation) return;
+      pending.release();
       _statuses.remove(tempMid);
       _statuses[result.mid] = MessageSendStatus.sent;
       final after = _messages ?? [];
@@ -1092,7 +1129,8 @@ class ChatController extends _$ChatController {
       _progress.remove(tempMid);
     } catch (error) {
       debugPrint(
-          'VoceUpload stage=controller category=${error is DioException ? error.type.name : error is FileSystemException ? "fileAccess" : error is StateError ? "protocol" : "unknown"}');
+        'VoceUpload stage=controller category=${error is DioException ? error.type.name : error is FileSystemException ? "fileAccess" : error is StateError ? "protocol" : "unknown"}',
+      );
       if (generation != _generation) return;
       _markSendFailed(tempMid);
     }
@@ -1298,6 +1336,7 @@ class _PendingFile {
   _PendingFile({
     this.bytes,
     this.file,
+    this.ownsFile = false,
     required this.filename,
     required this.contentType,
     required this.isVoiceMessage,
@@ -1308,6 +1347,7 @@ class _PendingFile {
 
   final Uint8List? bytes;
   final File? file;
+  final bool ownsFile;
   final CancelToken cancel = CancelToken();
   final String filename;
   final String? contentType;
@@ -1315,4 +1355,9 @@ class _PendingFile {
   final int localId;
   final int? width;
   final int? height;
+
+  void release({bool cancelUpload = false}) {
+    if (cancelUpload) cancel.cancel();
+    if (ownsFile && file != null) unawaited(discardOwnedAttachment(file!));
+  }
 }

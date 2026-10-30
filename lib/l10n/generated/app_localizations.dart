@@ -2950,7 +2950,7 @@ abstract class AppL10n {
   /// No description provided for @shareChooseTarget.
   ///
   /// In en, this message translates to:
-  /// **'Choose a conversation. Review the content there before sending.'**
+  /// **'Choose file transfer, or a conversation to review the content before sending.'**
   String get shareChooseTarget;
 
   /// No description provided for @shareNoConversations.
@@ -2968,8 +2968,20 @@ abstract class AppL10n {
   /// No description provided for @shareTooLarge.
   ///
   /// In en, this message translates to:
-  /// **'Shared files are too large (32 MiB per file, 64 MiB total, up to 16 files).'**
+  /// **'The shared files exceed the supported range.'**
   String get shareTooLarge;
+
+  /// No description provided for @shareTooMany.
+  ///
+  /// In en, this message translates to:
+  /// **'Share up to 16 files at a time. Select fewer files and try again.'**
+  String get shareTooMany;
+
+  /// No description provided for @shareTransferHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add files to file transfer, then choose a device and confirm before sending.'**
+  String get shareTransferHint;
 
   /// No description provided for @shareReceiveFailed.
   ///
@@ -3154,7 +3166,7 @@ abstract class AppL10n {
   /// No description provided for @localTransferQuick.
   ///
   /// In en, this message translates to:
-  /// **'Quick transfer'**
+  /// **'Peer transfer'**
   String get localTransferQuick;
 
   /// No description provided for @localTransferDescription.
@@ -3364,8 +3376,80 @@ abstract class AppL10n {
   /// No description provided for @localTransferSave.
   ///
   /// In en, this message translates to:
-  /// **'Save to device'**
+  /// **'Save as'**
   String get localTransferSave;
+
+  /// No description provided for @localTransferReceivedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Files are stored at the locations below. Save as moves them to another folder.'**
+  String get localTransferReceivedHint;
+
+  /// No description provided for @localTransferStorageSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive settings'**
+  String get localTransferStorageSettings;
+
+  /// No description provided for @localTransferStorageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose separate folders for images and other files. This applies to new arrivals only; existing files stay in place.'**
+  String get localTransferStorageHint;
+
+  /// No description provided for @localTransferImageFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Image folder'**
+  String get localTransferImageFolder;
+
+  /// No description provided for @localTransferFileFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'File folder'**
+  String get localTransferFileFolder;
+
+  /// No description provided for @localTransferPrivateStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'App storage'**
+  String get localTransferPrivateStorage;
+
+  /// No description provided for @localTransferChooseFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get localTransferChooseFolder;
+
+  /// No description provided for @localTransferResetFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset folder'**
+  String get localTransferResetFolder;
+
+  /// No description provided for @localTransferStorageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot use this folder. Select it again and grant access.'**
+  String get localTransferStorageError;
+
+  /// No description provided for @localTransferStorageFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'The custom folder is unavailable. Your file is safe in app storage and can be saved elsewhere.'**
+  String get localTransferStorageFallback;
+
+  /// No description provided for @localTransferNearbyShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the same Wi-Fi and keep this page open on both devices.'**
+  String get localTransferNearbyShort;
+
+  /// No description provided for @localTransferSavedAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to the selected location'**
+  String get localTransferSavedAs;
 
   /// No description provided for @localTransferLeaveTitle.
   ///

@@ -87,6 +87,9 @@ class MainActivity : AgoraPIPFlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (!flutterEngine.plugins.has(ReceivedFileExportPlugin::class.java)) {
+            flutterEngine.plugins.add(ReceivedFileExportPlugin())
+        }
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) {
             updater = AndroidUpdateInstaller(this, flutterEngine.dartExecutor.binaryMessenger)
         } else {

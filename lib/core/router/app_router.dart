@@ -281,6 +281,8 @@ final appRoutesProvider = Provider<List<RouteBase>>((ref) => [
         GoRoute(
           path: '/file-transfer',
           builder: (context, state) => LocalTransferScreen(
+              incomingShare: state.extra is IncomingTransferSelection
+                  ? state.extra as IncomingTransferSelection : null,
               initialFiles: state.extra is List<String>
                   ? state.extra as List<String>
                   : const []),

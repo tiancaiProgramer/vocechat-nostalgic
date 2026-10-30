@@ -4,6 +4,7 @@ import '../../../core/background/background_preferences.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import '../data/disk_attachment.dart';
 
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
@@ -212,6 +213,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _pendingMentions.clear();
         _restoringDraft = false;
         _closeMentionOverlay();
+        _discardStagedFiles();
         setState(() {
           _staged.clear();
           _replyToMid = null;
@@ -293,26 +295,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         for (final file in selection.payload.files) {
           try {
             final source = File(file.path);
-            if (await source.length() > 32 * 1024 * 1024) {
-              throw const FormatException();
+            if (await source.length() <= 0) throw const FormatException();
+            final retained = await retainSharedAttachment(source);
+            if (!current()) {
+              await discardOwnedAttachment(retained);
+              return;
             }
-            final bytes = await source.readAsBytes();
-            if (!current()) return;
-            if (bytes.isEmpty || bytes.length > 32 * 1024 * 1024) {
-              throw const FormatException();
+            try {
+              await _stageDiskFile(
+                retained,
+                file.name,
+                shouldContinue: current,
+                ownsFile: true,
+              );
+            } catch (_) {
+              await discardOwnedAttachment(retained);
+              rethrow;
             }
-            _stageFile(bytes, file.name);
           } catch (_) {
             failed = true;
           }
         }
         if (current() && mounted && failed) {
           final l = AppL10n.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l.shareImportFailed),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l.shareImportFailed)));
         }
       } finally {
         if (mounted && selected.state?.payload.id == selection.payload.id) {
@@ -365,6 +373,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void dispose() {
     _saveDraft(flush: true);
+    _discardStagedFiles();
     _draftGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _composerFocusNode.dispose();
@@ -546,6 +555,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             file: img.file!,
             filename: img.filename,
             contentType: img.contentType,
+            ownsFile: img.ownsFile,
           );
         } else {
           await notifier.sendImage(
@@ -584,9 +594,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _recomputeCanSend();
   }
 
+  void _discardStagedFiles() {
+    for (final item in _staged) {
+      if (item.ownsFile) unawaited(discardOwnedAttachment(item.file!));
+    }
+  }
+
   void _removeStaged(int index) {
     if (index < 0 || index >= _staged.length) return;
+    final removed = _staged[index];
     setState(() => _staged.removeAt(index));
+    if (removed.ownsFile) unawaited(discardOwnedAttachment(removed.file!));
     _recomputeCanSend();
   }
 
@@ -670,8 +688,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       for (final indices in groups.values) {
         if (indices.length != 2) continue;
         final still = indices
-            .where((i) => const ['jpg', 'jpeg', 'heic', 'heif']
-                .contains(result.files[i].extension?.toLowerCase()))
+            .where(
+              (i) => const [
+                'jpg',
+                'jpeg',
+                'heic',
+                'heif',
+              ].contains(result.files[i].extension?.toLowerCase()),
+            )
             .firstOrNull;
         final movie = indices
             .where((i) => result.files[i].extension?.toLowerCase() == 'mov')
@@ -682,18 +706,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (pairs.isNotEmpty) {
         if (!mounted) return;
         final choice = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-                    title: Text(l.livePhotoPairTitle),
-                    content: Text(l.livePhotoPairBody),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: Text(l.livePhotoPairSeparate)),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: Text(l.livePhotoPairMerge))
-                    ]));
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l.livePhotoPairTitle),
+            content: Text(l.livePhotoPairBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l.livePhotoPairSeparate),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l.livePhotoPairMerge),
+              ),
+            ],
+          ),
+        );
         if (choice == null || !current()) return;
         combine = choice;
       }
@@ -716,9 +744,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         final picked = result.files[index];
         if (combine && pairs.containsKey(index)) {
           final prepared = await AttachmentPreparer.prepareLivePhoto(
-              still: await readPhotoResource(picked),
-              movie: await readPhotoResource(result.files[pairs[index]!]),
-              filename: picked.name);
+            still: await readPhotoResource(picked),
+            movie: await readPhotoResource(result.files[pairs[index]!]),
+            filename: picked.name,
+          );
           if (!current()) return;
           _stageFile(prepared.bytes, prepared.filename);
         } else if (picked.path != null) {
@@ -751,6 +780,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     File file,
     String filename, {
     bool Function()? shouldContinue,
+    bool ownsFile = false,
   }) async {
     final size = await file.length();
     final reader = await file.open();
@@ -760,17 +790,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } finally {
       await reader.close();
     }
-    if (!mounted || shouldContinue?.call() == false) return;
-    final type = MessageApi.inferContentType(filename, bytes: header);
-    // Keep existing photo conversion/preview behavior. Generic attachments
-    // (including APKs and videos) never materialize their full contents.
-    if (type.startsWith('image/')) {
-      final bytes = await file.readAsBytes();
-      if (mounted && shouldContinue?.call() != false) {
-        _stageFile(bytes, filename);
-      }
+    if (!mounted || shouldContinue?.call() == false) {
+      if (ownsFile) await discardOwnedAttachment(file);
       return;
     }
+    final type = MessageApi.inferContentType(filename, bytes: header);
+    // All disk-backed files stay on disk. Only formats requiring conversion
+    // are decoded, with a bounded image limit, when the user sends them.
     filename = MessageApi.resolveFilename(
       filename,
       bytes: header,
@@ -783,6 +809,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           fileSize: size,
           filename: filename,
           contentType: type,
+          ownsFile: ownsFile,
         ),
       ),
     );
@@ -3578,7 +3605,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)));
+          SnackBar(content: Text(AppL10n.of(context).chatMediaReadFailed)),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -3666,9 +3694,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
             throw const FileSystemException();
           }
           final prepared = await AttachmentPreparer.prepareLivePhoto(
-              still: bytes,
-              movie: await movie.readAsBytes(),
-              filename: filename);
+            still: bytes,
+            movie: await movie.readAsBytes(),
+            filename: filename,
+          );
           bytes = prepared.bytes;
           filename = prepared.filename;
         }
@@ -3709,31 +3738,44 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
           child: Column(
             children: [
-              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                Expanded(
-                    child: Text(l.chatAttach,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppTokens.textHeading))),
-                const SizedBox(width: 8),
-                Expanded(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      l.chatAttach,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTokens.textHeading,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
                     flex: 4,
-                    child: Wrap(alignment: WrapAlignment.end, children: [
-                      if (isAndroidBackgroundSupported)
-                        TextButton.icon(
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      children: [
+                        if (isAndroidBackgroundSupported)
+                          TextButton.icon(
                             key: const ValueKey('attachment-quick-transfer'),
                             onPressed: _sending ? null : _openQuickTransfer,
                             icon: const Icon(Icons.swap_horiz, size: 18),
-                            label: Text(l.localTransferQuick)),
-                      TextButton.icon(
+                            label: Text(l.localTransferQuick),
+                          ),
+                        TextButton.icon(
                           onPressed: _openFiles,
                           icon: const Icon(Icons.folder_outlined, size: 18),
-                          label: Text(l.chatAttachOpenFiles)),
-                    ])),
-              ]),
+                          label: Text(l.chatAttachOpenFiles),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               Expanded(
                 child: _permissionDenied || _loading
@@ -4134,6 +4176,7 @@ class _StagedFile {
     this.bytes,
     this.file,
     this.fileSize,
+    this.ownsFile = false,
     required this.filename,
     required this.contentType,
   }) : assert(bytes != null || file != null);
@@ -4141,6 +4184,7 @@ class _StagedFile {
   final Uint8List? bytes;
   final File? file;
   final int? fileSize;
+  final bool ownsFile;
 
   /// Mutable so the rename dialog can update it in place.
   String filename;
@@ -4222,38 +4266,55 @@ class _StagedFileCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: file.isImage && file.bytes != null
-                      ? Image.memory(
-                          file.bytes!,
+                  child: file.isImage && file.file != null
+                      ? Image.file(
+                          file.file!,
                           width: thumbSize,
                           height: thumbSize,
                           fit: BoxFit.cover,
                           cacheWidth: 240,
                           cacheHeight: 240,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
+                          errorBuilder: (_, __, ___) => SizedBox(
                             width: thumbSize,
                             height: thumbSize,
-                            color: AppTokens.borderSubtle,
-                            alignment: Alignment.center,
                             child: Icon(
-                              Icons.broken_image_outlined,
-                              size: 34,
+                              Icons.image_outlined,
                               color: AppTokens.textMuted,
                             ),
                           ),
                         )
-                      : Container(
-                          width: thumbSize,
-                          height: thumbSize,
-                          color: AppTokens.borderSubtle,
-                          alignment: Alignment.center,
-                          child: Icon(
-                            iconForContentType(file.contentType),
-                            size: 34,
-                            color: AppTokens.textMuted,
-                          ),
-                        ),
+                      : file.isImage && file.bytes != null
+                          ? Image.memory(
+                              file.bytes!,
+                              width: thumbSize,
+                              height: thumbSize,
+                              fit: BoxFit.cover,
+                              cacheWidth: 240,
+                              cacheHeight: 240,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                width: thumbSize,
+                                height: thumbSize,
+                                color: AppTokens.borderSubtle,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 34,
+                                  color: AppTokens.textMuted,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: thumbSize,
+                              height: thumbSize,
+                              color: AppTokens.borderSubtle,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                iconForContentType(file.contentType),
+                                size: 34,
+                                color: AppTokens.textMuted,
+                              ),
+                            ),
                 ),
                 const SizedBox(height: 4),
                 SizedBox(

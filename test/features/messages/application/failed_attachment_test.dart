@@ -19,7 +19,8 @@ import 'chat_expiry_test.dart' show MemoryCache, OfflineAuth, target, message;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final png = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=');
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=',
+  );
   late ProviderContainer container;
   late ChatController controller;
   late MemoryCache cache;
@@ -37,36 +38,49 @@ void main() {
     requests = [];
     cache = MemoryCache([message(1)]);
     final dio = Dio();
-    dio.interceptors
-        .add(InterceptorsWrapper(onRequest: (request, handler) async {
-      requests.add(request);
-      if (request.path.endsWith('/upload')) {
-        if (!uploadStarted.isCompleted) uploadStarted.complete();
-        await uploadGate?.future;
-      }
-      if (request.path.endsWith('/upload') && uploadFails) {
-        handler.reject(DioException(requestOptions: request));
-        return;
-      }
-      handler.resolve(Response<dynamic>(
-          requestOptions: request,
-          data: request.path.endsWith('/prepare')
-              ? 'id'
-              : request.path.endsWith('/upload')
-                  ? ((request.data as FormData).fields.any(
-                          (f) => f.key == 'chunk_is_last' && f.value == 'true')
-                      ? {'path': 'photo.jpg'}
-                      : null)
-                  : request.method == 'POST'
-                      ? 100
-                      : []));
-    }));
-    container = ProviderContainer(overrides: [
-      messageCacheProvider.overrideWith((ref) async => cache),
-      messageApiProvider.overrideWith((ref) => MessageApi(dio)),
-      sseEventsProvider.overrideWith((ref) => const Stream<ChatEvent>.empty()),
-      authControllerProvider.overrideWith(OfflineAuth.new),
-    ]);
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (request, handler) async {
+          requests.add(request);
+          if (request.path.endsWith('/upload')) {
+            if (!uploadStarted.isCompleted) uploadStarted.complete();
+            await uploadGate?.future;
+          }
+          if (request.path.endsWith('/upload') && uploadFails) {
+            handler.reject(DioException(requestOptions: request));
+            return;
+          }
+          handler.resolve(
+            Response<dynamic>(
+              requestOptions: request,
+              data: request.path.endsWith('/prepare')
+                  ? 'id'
+                  : request.path.endsWith('/upload')
+                      ? ((request.data as FormData).fields.any(
+                                (f) =>
+                                    f.key == 'chunk_is_last' &&
+                                    f.value == 'true',
+                              )
+                          ? {'path': 'photo.jpg'}
+                          : null)
+                      : request.method == 'POST'
+                          ? 100
+                          : [],
+            ),
+          );
+        },
+      ),
+    );
+    container = ProviderContainer(
+      overrides: [
+        messageCacheProvider.overrideWith((ref) async => cache),
+        messageApiProvider.overrideWith((ref) => MessageApi(dio)),
+        sseEventsProvider.overrideWith(
+          (ref) => const Stream<ChatEvent>.empty(),
+        ),
+        authControllerProvider.overrideWith(OfflineAuth.new),
+      ],
+    );
     addTearDown(() {
       container.dispose();
       dio.close(force: true);
@@ -84,78 +98,87 @@ void main() {
   }
 
   test(
-      'disk-backed APK failure retries without keeping whole-file preview bytes',
-      () async {
-    final dir = await Directory.systemTemp.createTemp('vc-retry-file-');
-    addTearDown(() => dir.delete(recursive: true));
-    final file = File('${dir.path}/application.apk');
-    final handle = await file.open(mode: FileMode.write);
-    await handle.truncate(150 * 1024 * 1024);
-    await handle.close();
-    await controller.sendFile(file: file, filename: 'application.apk');
-    final mid = rows().firstWhere((row) => row.mid < 0).mid;
-    expect(controller.localBytesFor(mid), isNull);
-    expect(controller.statusFor(mid), MessageSendStatus.failed);
-    expect(controller.canRetrySend(mid), isTrue);
-    uploadFails = false;
-    await controller.retrySend(mid);
-    expect(controller.statusFor(100), MessageSendStatus.sent);
-    expect(controller.localBytesFor(100), isNull);
-    expect(rows().first.displayContent, jsonEncode({'path': 'photo.jpg'}));
-  });
+    'disk-backed APK failure retries without keeping whole-file preview bytes',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('vc-retry-file-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/application.apk');
+      final handle = await file.open(mode: FileMode.write);
+      await handle.truncate(150 * 1024 * 1024);
+      await handle.close();
+      await controller.sendFile(file: file, filename: 'application.apk');
+      final mid = rows().firstWhere((row) => row.mid < 0).mid;
+      expect(controller.localBytesFor(mid), isNull);
+      expect(controller.statusFor(mid), MessageSendStatus.failed);
+      expect(controller.canRetrySend(mid), isTrue);
+      uploadFails = false;
+      await controller.retrySend(mid);
+      expect(controller.statusFor(100), MessageSendStatus.sent);
+      expect(controller.localBytesFor(100), isNull);
+      expect(rows().first.displayContent, jsonEncode({'path': 'photo.jpg'}));
+    },
+  );
 
-  test('new text and SSE messages pass failed upload even with clock skew',
-      () async {
-    final mid = await failUpload();
-    expect(controller.localBytesFor(mid), png);
-    await controller.sendText('new text');
-    expect(rows().map((row) => row.mid), [100, mid, 1]);
-    controller.applyIncomingMessage(message(101, createdAt: 1));
-    await Future<void>.delayed(Duration.zero);
-    expect(rows().map((row) => row.mid), [101, 100, mid, 1]);
-  });
+  test(
+    'new text and SSE messages pass failed upload even with clock skew',
+    () async {
+      final mid = await failUpload();
+      expect(controller.localBytesFor(mid), png);
+      await controller.sendText('new text');
+      expect(rows().map((row) => row.mid), [100, mid, 1]);
+      controller.applyIncomingMessage(message(101, createdAt: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(rows().map((row) => row.mid), [101, 100, mid, 1]);
+    },
+  );
 
-  test('restored failed attachment keeps its place and cannot retry as text',
-      () async {
-    final mid = await failUpload();
-    controller.applyIncomingMessage(message(101, createdAt: 1));
-    await Future<void>.delayed(Duration.zero);
-    expect(rows().map((row) => row.mid), [101, mid, 1]);
+  test(
+    'restored failed attachment keeps its place and cannot retry as text',
+    () async {
+      final mid = await failUpload();
+      controller.applyIncomingMessage(message(101, createdAt: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(rows().map((row) => row.mid), [101, mid, 1]);
 
-    container.invalidate(chatControllerProvider(target));
-    await container.read(chatControllerProvider(target).future);
-    controller = container.read(chatControllerProvider(target).notifier);
+      container.invalidate(chatControllerProvider(target));
+      await container.read(chatControllerProvider(target).future);
+      controller = container.read(chatControllerProvider(target).notifier);
 
-    expect(controller.statusFor(mid), MessageSendStatus.failed);
-    expect(controller.localBytesFor(mid), isNull);
-    expect(rows().map((row) => row.mid), [101, mid, 1]);
+      expect(controller.statusFor(mid), MessageSendStatus.failed);
+      expect(controller.localBytesFor(mid), isNull);
+      expect(rows().map((row) => row.mid), [101, mid, 1]);
 
-    controller.applyIncomingMessage(message(102, createdAt: 1));
-    await Future<void>.delayed(Duration.zero);
-    expect(rows().map((row) => row.mid), [102, 101, mid, 1]);
+      controller.applyIncomingMessage(message(102, createdAt: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(rows().map((row) => row.mid), [102, 101, mid, 1]);
 
-    final postCount =
-        requests.where((request) => request.method == 'POST').length;
-    await controller.retrySend(mid);
-    expect(requests.where((request) => request.method == 'POST').length,
-        postCount);
-    expect(controller.statusFor(mid), MessageSendStatus.failed);
-    expect(rows().map((row) => row.mid), [102, 101, mid, 1]);
-  });
+      final postCount =
+          requests.where((request) => request.method == 'POST').length;
+      await controller.retrySend(mid);
+      expect(
+        requests.where((request) => request.method == 'POST').length,
+        postCount,
+      );
+      expect(controller.statusFor(mid), MessageSendStatus.failed);
+      expect(rows().map((row) => row.mid), [102, 101, mid, 1]);
+    },
+  );
 
-  test('failed ephemeral upload expires and releases preview and retry state',
-      () async {
-    container.read(burnAfterReadProvider.notifier).applySnapshot({}, {42: 1});
-    final mid = await failUpload();
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
-    expect(rows().map((row) => row.mid), [1]);
-    expect(controller.localBytesFor(mid), isNull);
-    expect(controller.statusFor(mid), isNull);
-    expect(cache.deleted, contains(mid));
-    final count = requests.length;
-    await controller.retrySend(mid);
-    expect(requests.length, count);
-  });
+  test(
+    'failed ephemeral upload expires and releases preview and retry state',
+    () async {
+      container.read(burnAfterReadProvider.notifier).applySnapshot({}, {42: 1});
+      final mid = await failUpload();
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      expect(rows().map((row) => row.mid), [1]);
+      expect(controller.localBytesFor(mid), isNull);
+      expect(controller.statusFor(mid), isNull);
+      expect(cache.deleted, contains(mid));
+      final count = requests.length;
+      await controller.retrySend(mid);
+      expect(requests.length, count);
+    },
+  );
 
   test('a slow upload moves behind newer text as soon as it fails', () async {
     uploadGate = Completer<void>();
@@ -179,6 +202,33 @@ void main() {
     expect(controller.statusFor(mid), isNull);
     expect(requests.any((request) => request.method == 'DELETE'), isFalse);
   });
+
+  test(
+    'owned disk files survive failure for retry and are removed after success',
+    () async {
+      final root = await Directory.systemTemp.createTemp('vc-owned-retry-');
+      addTearDown(() async {
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final file = File('${root.path}/test.bin');
+      await file.writeAsBytes([1, 2, 3, 4]);
+      await controller.sendFile(
+        file: file,
+        filename: 'test.bin',
+        ownsFile: true,
+      );
+      final mid = rows().firstWhere((row) => row.mid < 0).mid;
+      expect(controller.statusFor(mid), MessageSendStatus.failed);
+      expect(await file.exists(), isTrue);
+      uploadFails = false;
+      await controller.retrySend(mid);
+      for (var i = 0; i < 30 && await file.exists(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(await file.exists(), isFalse);
+      expect(rows().any((row) => row.mid == 100), isTrue);
+    },
+  );
 
   test('retry confirms file and starts normal expiry without SSE', () async {
     container.read(burnAfterReadProvider.notifier).applySnapshot({}, {42: 1});

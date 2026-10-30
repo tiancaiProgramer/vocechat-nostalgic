@@ -1584,7 +1584,7 @@ class AppL10nEn extends AppL10n {
 
   @override
   String get shareChooseTarget =>
-      'Choose a conversation. Review the content there before sending.';
+      'Choose file transfer, or a conversation to review the content before sending.';
 
   @override
   String get shareNoConversations =>
@@ -1595,8 +1595,15 @@ class AppL10nEn extends AppL10n {
       'Some shared files could not be read. Please share them again.';
 
   @override
-  String get shareTooLarge =>
-      'Shared files are too large (32 MiB per file, 64 MiB total, up to 16 files).';
+  String get shareTooLarge => 'The shared files exceed the supported range.';
+
+  @override
+  String get shareTooMany =>
+      'Share up to 16 files at a time. Select fewer files and try again.';
+
+  @override
+  String get shareTransferHint =>
+      'Add files to file transfer, then choose a device and confirm before sending.';
 
   @override
   String get shareReceiveFailed =>
@@ -1699,7 +1706,7 @@ class AppL10nEn extends AppL10n {
   String get localTransferTitle => 'File transfer';
 
   @override
-  String get localTransferQuick => 'Quick transfer';
+  String get localTransferQuick => 'Peer transfer';
 
   @override
   String get localTransferDescription =>
@@ -1815,7 +1822,48 @@ class AppL10nEn extends AppL10n {
   String get localTransferReceived => 'Received on this device';
 
   @override
-  String get localTransferSave => 'Save to device';
+  String get localTransferSave => 'Save as';
+
+  @override
+  String get localTransferReceivedHint =>
+      'Files are stored at the locations below. Save as moves them to another folder.';
+
+  @override
+  String get localTransferStorageSettings => 'Receive settings';
+
+  @override
+  String get localTransferStorageHint =>
+      'Choose separate folders for images and other files. This applies to new arrivals only; existing files stay in place.';
+
+  @override
+  String get localTransferImageFolder => 'Image folder';
+
+  @override
+  String get localTransferFileFolder => 'File folder';
+
+  @override
+  String get localTransferPrivateStorage => 'App storage';
+
+  @override
+  String get localTransferChooseFolder => 'Choose folder';
+
+  @override
+  String get localTransferResetFolder => 'Reset folder';
+
+  @override
+  String get localTransferStorageError =>
+      'Cannot use this folder. Select it again and grant access.';
+
+  @override
+  String get localTransferStorageFallback =>
+      'The custom folder is unavailable. Your file is safe in app storage and can be saved elsewhere.';
+
+  @override
+  String get localTransferNearbyShort =>
+      'Connect to the same Wi-Fi and keep this page open on both devices.';
+
+  @override
+  String get localTransferSavedAs => 'Moved to the selected location';
 
   @override
   String get localTransferLeaveTitle => 'Stop this transfer?';

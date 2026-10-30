@@ -83,7 +83,11 @@ class IncomingShareBridgeTest {
             val intent = Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/*")
                 .putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(uri, uri))
             bridge.receive(intent)
-            val packet = awaitPacket(messenger)
+            val metadata = awaitPacket(messenger)
+            assertEquals(false, metadata["prepared"])
+            assertEquals("", ((metadata["files"] as List<*>).single() as Map<*, *>)["path"])
+            val packet = messenger.invoke("prepare", mapOf("id" to metadata["id"], "mode" to "chat")) as Map<*, *>
+            assertEquals(true, packet["prepared"])
             val files = packet["files"] as List<*>
             assertEquals(packet.toString(), 1, files.size)
             val file = files.single() as Map<*, *>
@@ -95,11 +99,25 @@ class IncomingShareBridgeTest {
             assertArrayEquals(bytes, original.readBytes())
             assertNull(shadowOf(app).nextStartedActivity)
             // No declared size is trusted: enforce the cap while streaming.
-            java.io.RandomAccessFile(original, "rw").use { it.setLength(33L * 1024 * 1024) }
+            java.io.RandomAccessFile(original, "rw").use { it.setLength(80L * 1024 * 1024) }
             bridge.receive(intent)
-            val tooLarge = awaitPacket(messenger)
-            assertEquals("too_large", tooLarge["error"])
-            assertTrue((tooLarge["files"] as List<*>).isEmpty())
+            val largeMetadata = awaitPacket(messenger)
+            assertEquals("", largeMetadata["error"])
+            assertFalse(File(app.cacheDir, "incoming-shares/${largeMetadata["id"]}").exists())
+            val tooLarge = messenger.invoke("prepare", mapOf("id" to largeMetadata["id"], "mode" to "chat")) as Map<*, *>
+            assertEquals("", tooLarge["error"])
+            assertEquals(true, tooLarge["prepared"])
+            val transfer = messenger.invoke("prepare", mapOf("id" to largeMetadata["id"], "mode" to "transfer")) as Map<*, *>
+            assertEquals(true, transfer["prepared"])
+            assertEquals("", transfer["error"])
+            val largeFile = (transfer["files"] as List<*>).single() as Map<*, *>
+            assertEquals(80L * 1024 * 1024, (largeFile["size"] as Number).toLong())
+            val importedLarge = File(largeFile["path"] as String)
+            assertEquals("safe.gif", importedLarge.name)
+            assertEquals(original.length(), importedLarge.length())
+            messenger.invoke("ack", mapOf("id" to transfer["id"]))
+            waitUntil { !importedLarge.exists() }
+            assertTrue(original.exists())
         } finally { bridge.dispose(); original.delete() }
     }
 
@@ -142,6 +160,12 @@ class IncomingShareBridgeTest {
             val data = codec.encodeMethodCall(MethodCall(method, args)).apply { flip() }
             var response: ByteBuffer? = null
             checkNotNull(handler).onMessage(data) { response = it }
+            val deadline = System.currentTimeMillis() + 15000
+            while (response == null && System.currentTimeMillis() < deadline) {
+                Thread.sleep(10)
+                shadowOf(Looper.getMainLooper()).idle()
+            }
+            checkNotNull(response) { "Native share method did not complete" }
             return response?.let { it.flip(); codec.decodeEnvelope(it) }
         }
     }

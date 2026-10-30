@@ -24,93 +24,122 @@ void main() {
           'path': '/cache/photo.gif',
           'name': 'photo.gif',
           'mime': 'image/gif',
-          'size': 100
+          'size': 100,
         },
         {
           'path': '/cache/video.mp4',
           'name': 'video.mp4',
           'mime': 'video/mp4',
-          'size': 200
+          'size': 200,
         },
-      ]
+      ],
     });
     expect(share.hasContent, isTrue);
     expect(share.files, hasLength(2));
     expect(
-        () =>
-            IncomingShare.fromMap({'id': '../escape', 'text': '', 'files': []}),
-        throwsFormatException);
+      () => IncomingShare.fromMap({'id': '../escape', 'text': '', 'files': []}),
+      throwsFormatException,
+    );
     expect(
-        () => IncomingShare.fromMap({
-              'id': 'test',
-              'text': '',
-              'files': [
-                {
-                  'path': '/cache/large',
-                  'name': 'large',
-                  'size': 33 * 1024 * 1024
-                }
-              ]
-            }),
-        throwsFormatException);
+      () => IncomingShare.fromMap({
+        'id': 'test',
+        'text': '',
+        'files': [
+          {'path': '/cache/large', 'name': 'large', 'size': (1 << 40) + 1},
+        ],
+      }),
+      throwsFormatException,
+    );
+    final large = IncomingShare.fromMap({
+      'id': 'large-share',
+      'text': '',
+      'prepared': false,
+      'files': [
+        {'path': '', 'name': 'large.bin', 'size': 80 * 1024 * 1024},
+      ],
+    });
+    expect(large.canChoose, isTrue);
+    expect(large.prepared, isFalse);
+    expect(
+      IncomingShare.fromMap({
+        'id': 'unknown-size',
+        'text': '',
+        'prepared': false,
+        'files': [
+          {'path': '', 'name': 'unknown.bin', 'size': 0},
+        ],
+      }).canChoose,
+      isTrue,
+    );
   });
 
   test(
-      'refresh, hold and acknowledge do not redisplay an already selected share',
-      () async {
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      if (call.method == 'pending') {
-        return [
-          {'id': 'test-share', 'text': 'text', 'files': []}
-        ];
-      }
-      return null;
-    });
-    addTearDown(() => TestDefaultBinaryMessengerBinding
-        .instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null));
-    final container = ProviderContainer(
-        overrides: [accountStoreProvider.overrideWith(Accounts.new)]);
-    addTearDown(container.dispose);
-    final inbox = container.read(incomingSharesProvider.notifier);
-    await inbox.refresh();
-    expect(container.read(pendingIncomingShareProvider)!.text, 'text');
-    inbox.hold('test-share');
-    await inbox.refresh();
-    expect(container.read(pendingIncomingShareProvider), isNull);
-    await inbox.ack('test-share');
-    expect(calls.where((c) => c.method == 'ack').single.arguments,
-        {'id': 'test-share'});
-  });
+    'refresh, hold and acknowledge do not redisplay an already selected share',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        if (call.method == 'pending') {
+          return [
+            {'id': 'test-share', 'text': 'text', 'files': []},
+          ];
+        }
+        return null;
+      });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      final container = ProviderContainer(
+        overrides: [accountStoreProvider.overrideWith(Accounts.new)],
+      );
+      addTearDown(container.dispose);
+      final inbox = container.read(incomingSharesProvider.notifier);
+      await inbox.refresh();
+      expect(container.read(pendingIncomingShareProvider)!.text, 'text');
+      inbox.hold('test-share');
+      await inbox.refresh();
+      expect(container.read(pendingIncomingShareProvider), isNull);
+      await inbox.ack('test-share');
+      expect(calls.where((c) => c.method == 'ack').single.arguments, {
+        'id': 'test-share',
+      });
+    },
+  );
 
   test(
-      'switching accounts cancels a selected share instead of applying it to the new account',
-      () async {
-    final acked = <String>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'ack') {
-        acked.add((call.arguments as Map)['id'] as String);
-      }
-      return call.method == 'pending' ? [] : null;
-    });
-    addTearDown(() => TestDefaultBinaryMessengerBinding
-        .instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null));
-    final container = ProviderContainer(
-        overrides: [accountStoreProvider.overrideWith(Accounts.new)]);
-    addTearDown(container.dispose);
-    container.read(incomingSharesProvider);
-    await container.read(accountStoreProvider.future);
-    container.read(selectedIncomingShareProvider.notifier).state =
-        const IncomingShareSelection('server::7', 'u-8',
-            IncomingShare(id: 'old', text: 'private draft', files: []));
-    (container.read(accountStoreProvider.notifier) as Accounts).switchAccount();
-    await Future<void>.delayed(Duration.zero);
-    expect(container.read(selectedIncomingShareProvider), isNull);
-    expect(acked, ['old']);
-  });
+    'switching accounts cancels a selected share instead of applying it to the new account',
+    () async {
+      final acked = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'ack') {
+          acked.add((call.arguments as Map)['id'] as String);
+        }
+        return call.method == 'pending' ? [] : null;
+      });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      final container = ProviderContainer(
+        overrides: [accountStoreProvider.overrideWith(Accounts.new)],
+      );
+      addTearDown(container.dispose);
+      container.read(incomingSharesProvider);
+      await container.read(accountStoreProvider.future);
+      container.read(selectedIncomingShareProvider.notifier).state =
+          const IncomingShareSelection(
+        'server::7',
+        'u-8',
+        IncomingShare(id: 'old', text: 'private draft', files: []),
+      );
+      (container.read(accountStoreProvider.notifier) as Accounts)
+          .switchAccount();
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(selectedIncomingShareProvider), isNull);
+      expect(acked, ['old']);
+    },
+  );
 }

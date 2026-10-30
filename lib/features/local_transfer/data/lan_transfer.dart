@@ -7,12 +7,15 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
-String _nonce() => List.generate(16, (_) => Random.secure().nextInt(256))
-    .map((e) => e.toRadixString(16).padLeft(2, '0'))
-    .join();
+String _nonce() => List.generate(
+      16,
+      (_) => Random.secure().nextInt(256),
+    ).map((e) => e.toRadixString(16).padLeft(2, '0')).join();
 
-bool isPrivateLanAddress(InternetAddress address,
-    {bool allowLoopback = false}) {
+bool isPrivateLanAddress(
+  InternetAddress address, {
+  bool allowLoopback = false,
+}) {
   if (address.type != InternetAddressType.IPv4) return false;
   final a = address.rawAddress;
   return (allowLoopback && address.isLoopback) ||
@@ -45,23 +48,25 @@ String safeTransferName(String name) {
 }
 
 class LanPeer {
-  const LanPeer(
-      {required this.fingerprint,
-      required this.name,
-      required this.address,
-      required this.port,
-      required this.lastSeen,
-      this.manual = false});
+  const LanPeer({
+    required this.fingerprint,
+    required this.name,
+    required this.address,
+    required this.port,
+    required this.lastSeen,
+    this.manual = false,
+  });
   final String fingerprint, name;
   final InternetAddress address;
   final int port;
   final DateTime lastSeen;
   final bool manual;
   Uri get link => Uri(
-      scheme: 'vocechat-transfer',
-      host: address.address,
-      port: port,
-      queryParameters: {'fp': fingerprint, 'name': name});
+        scheme: 'vocechat-transfer',
+        host: address.address,
+        port: port,
+        queryParameters: {'fp': fingerprint, 'name': name},
+      );
   static LanPeer parseLink(String link, {bool allowLoopback = false}) {
     final uri = Uri.parse(link.trim());
     final address = InternetAddress.tryParse(uri.host);
@@ -75,12 +80,13 @@ class LanPeer {
       throw const LanTransferException('protocol');
     }
     return LanPeer(
-        fingerprint: fp,
-        name: _alias(uri.queryParameters['name']),
-        address: address,
-        port: uri.port,
-        lastSeen: DateTime.now(),
-        manual: true);
+      fingerprint: fp,
+      name: _alias(uri.queryParameters['name']),
+      address: address,
+      port: uri.port,
+      lastSeen: DateTime.now(),
+      manual: true,
+    );
   }
 }
 
@@ -104,15 +110,19 @@ enum LanTransferPhase {
   verifying,
   completed,
   failed,
-  cancelled
+  cancelled,
 }
 
 class LanFileDescription {
   const LanFileDescription(this.id, this.name, this.size, this.hash);
   final String id, name, hash;
   final int size;
-  Map<String, Object> toJson() =>
-      {'id': id, 'name': name, 'size': size, 'sha256': hash};
+  Map<String, Object> toJson() => {
+        'id': id,
+        'name': name,
+        'size': size,
+        'sha256': hash,
+      };
   factory LanFileDescription.fromJson(Object? value) {
     if (value is! Map) throw const LanTransferException('protocol');
     final id = value['id'],
@@ -141,8 +151,15 @@ class LanIncomingOffer {
 }
 
 class LanReceivedFile {
-  const LanReceivedFile(this.file, this.name, this.size);
-  final File file;
+  const LanReceivedFile(this.localFile, this.name, this.size)
+      : uri = null,
+        location = null;
+  const LanReceivedFile.stored(this.uri, this.name, this.size, this.location)
+      : localFile = null;
+  final File? localFile;
+  File get file =>
+      localFile ?? (throw StateError('File is in a document folder'));
+  final String? uri, location;
   final String name;
   final int size;
 }
@@ -164,17 +181,18 @@ class _IncomingSession {
 /// Independent, versioned LAN protocol. No VoceChat tokens or server API calls.
 /// TLS certificates are ephemeral and pinned to the selected discovery record.
 class LanTransferEngine extends ChangeNotifier {
-  LanTransferEngine(
-      {required this.context,
-      required this.fingerprint,
-      required String name,
-      required this.directory,
-      this.broadcasts = const [],
-      this.allowLoopback = false,
-      this.onIncoming,
-      this.onActive,
-      this.discoveryPort = 53318})
-      : name = _alias(name);
+  LanTransferEngine({
+    required this.context,
+    required this.fingerprint,
+    required String name,
+    required this.directory,
+    this.broadcasts = const [],
+    this.allowLoopback = false,
+    this.onIncoming,
+    this.onActive,
+    this.onReceived,
+    this.discoveryPort = 53318,
+  }) : name = _alias(name);
   final SecurityContext context;
   final String fingerprint, name;
   final Directory directory;
@@ -183,11 +201,15 @@ class LanTransferEngine extends ChangeNotifier {
   final int discoveryPort;
   final Future<bool> Function(LanIncomingOffer)? onIncoming;
   final Future<void> Function(bool active, int progress)? onActive;
+  final Future<LanReceivedFile> Function(LanReceivedFile)? onReceived;
   HttpServer? _server;
   RawDatagramSocket? _discovery;
   Timer? _announce;
   final _peers = <String, LanPeer>{};
   final received = <LanReceivedFile>[];
+
+  /// Files acknowledged by the receiver during the latest outgoing batch.
+  final completedOutgoingPaths = <String>{};
   LanTransferPhase phase = LanTransferPhase.idle;
   LanIncomingOffer? incoming;
   String? peerName, currentFileName, errorCode, verificationCode;
@@ -222,34 +244,47 @@ class LanTransferEngine extends ChangeNotifier {
   Future<void> start({bool discovery = true}) async {
     await directory.create(recursive: true);
     await for (final item in directory.list()) {
-      final partial = RegExp(r'^\.[a-f0-9]{32}_[a-f0-9]{32}\.part$')
-          .hasMatch(item.uri.pathSegments.last);
+      final partial = RegExp(
+        r'^\.[a-f0-9]{32}_[a-f0-9]{32}\.part$',
+      ).hasMatch(item.uri.pathSegments.last);
       if (item is File && !partial) {
-        received.add(LanReceivedFile(
-            item, item.uri.pathSegments.last, await item.length()));
+        received.add(
+          LanReceivedFile(
+            item,
+            item.uri.pathSegments.last,
+            await item.length(),
+          ),
+        );
       } else if (item is File && partial) {
         await item.delete();
       }
     }
-    received.sort((a, b) =>
-        b.file.lastModifiedSync().compareTo(a.file.lastModifiedSync()));
+    received.sort(
+      (a, b) => b.file.lastModifiedSync().compareTo(a.file.lastModifiedSync()),
+    );
     _server = await HttpServer.bindSecure(InternetAddress.anyIPv4, 0, context);
     if (_closed) {
       await _server!.close(force: true);
       return;
     }
-    _server!.listen((request) => unawaited(_handle(request)),
-        onError: (Object _) {});
+    _server!.listen(
+      (request) => unawaited(_handle(request)),
+      onError: (Object _) {},
+    );
     if (discovery) {
       try {
         _discovery = await RawDatagramSocket.bind(
-            InternetAddress.anyIPv4, discoveryPort,
-            reuseAddress: true, reusePort: true);
+          InternetAddress.anyIPv4,
+          discoveryPort,
+          reuseAddress: true,
+          reusePort: true,
+        );
         _discovery!.broadcastEnabled = true;
         _discovery!.multicastLoopback = false;
         final group = InternetAddress('239.77.18.1');
-        for (final network
-            in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
+        for (final network in await NetworkInterface.list(
+          type: InternetAddressType.IPv4,
+        )) {
           if (network.addresses.any((a) => isPrivateLanAddress(a))) {
             try {
               _discovery!.joinMulticast(group, network);
@@ -263,20 +298,25 @@ class LanTransferEngine extends ChangeNotifier {
             _acceptPacket(packet!);
           }
         }, onError: (Object _) {});
-        _announce =
-            Timer.periodic(const Duration(seconds: 2), (_) => _publish());
+        _announce = Timer.periodic(
+          const Duration(seconds: 2),
+          (_) => _publish(),
+        );
         _publish();
-      } catch (_) {/* Manual connection information remains available. */}
+      } catch (_) {
+        /* Manual connection information remains available. */
+      }
     }
     _notify();
   }
 
   LanPeer selfAt(InternetAddress address) => LanPeer(
-      fingerprint: fingerprint,
-      name: name,
-      address: address,
-      port: port,
-      lastSeen: DateTime.now());
+        fingerprint: fingerprint,
+        name: name,
+        address: address,
+        port: port,
+        lastSeen: DateTime.now(),
+      );
   void addPeer(LanPeer peer) {
     if (!isPrivateLanAddress(peer.address, allowLoopback: allowLoopback) ||
         peer.fingerprint == fingerprint) {
@@ -295,14 +335,17 @@ class LanTransferEngine extends ChangeNotifier {
   void _publish() {
     if (_closed || !_discoveryEnabled) return;
     final now = DateTime.now();
-    _peers.removeWhere((_, peer) =>
-        !peer.manual && now.difference(peer.lastSeen).inSeconds > 8);
-    final data = utf8.encode(jsonEncode({
-      'protocol': 'vocechat-lan-1',
-      'id': fingerprint,
-      'name': name,
-      'port': port
-    }));
+    _peers.removeWhere(
+      (_, peer) => !peer.manual && now.difference(peer.lastSeen).inSeconds > 8,
+    );
+    final data = utf8.encode(
+      jsonEncode({
+        'protocol': 'vocechat-lan-1',
+        'id': fingerprint,
+        'name': name,
+        'port': port,
+      }),
+    );
     for (final address in [InternetAddress('239.77.18.1'), ...broadcasts]) {
       try {
         _discovery?.send(data, address, discoveryPort);
@@ -330,12 +373,15 @@ class LanTransferEngine extends ChangeNotifier {
           value['port'] > 65535) {
         return;
       }
-      addPeer(LanPeer(
+      addPeer(
+        LanPeer(
           fingerprint: value['id'],
           name: _alias(value['name']),
           address: packet.address,
           port: value['port'],
-          lastSeen: DateTime.now()));
+          lastSeen: DateTime.now(),
+        ),
+      );
     } catch (_) {}
   }
 
@@ -374,10 +420,18 @@ class LanTransferEngine extends ChangeNotifier {
   }
 
   Uri _uri(LanPeer peer, String path) => Uri(
-      scheme: 'https', host: peer.address.address, port: peer.port, path: path);
+        scheme: 'https',
+        host: peer.address.address,
+        port: peer.port,
+        path: path,
+      );
   Future<Object?> _post(
-      HttpClient client, LanPeer peer, String path, Object data,
-      {String? token}) async {
+    HttpClient client,
+    LanPeer peer,
+    String path,
+    Object data, {
+    String? token,
+  }) async {
     final request = await client.postUrl(_uri(peer, path));
     request.followRedirects = false;
     request.headers.contentType = ContentType.json;
@@ -393,7 +447,7 @@ class LanTransferEngine extends ChangeNotifier {
         409 => 'busy',
         408 => 'timeout',
         422 => 'integrity',
-        _ => 'network'
+        _ => 'network',
       });
     }
     return _json(response);
@@ -412,6 +466,7 @@ class LanTransferEngine extends ChangeNotifier {
 
   Future<void> sendFiles(LanPeer peer, List<File> files) async {
     if (_working || _closed) return;
+    completedOutgoingPaths.clear();
     _working = true;
     final generation = ++_generation;
     phase = LanTransferPhase.preparing;
@@ -443,14 +498,22 @@ class LanTransferEngine extends ChangeNotifier {
         final size = await file.length();
         if (size > (1 << 40)) throw const LanTransferException('file');
         final hash = await sha256
-            .bind(file.openRead().map((chunk) {
-              current();
-              return chunk;
-            }))
+            .bind(
+              file.openRead().map((chunk) {
+                current();
+                return chunk;
+              }),
+            )
             .first;
         current();
-        descriptions.add(LanFileDescription(_nonce(),
-            safeTransferName(currentFileName!), size, hash.toString()));
+        descriptions.add(
+          LanFileDescription(
+            _nonce(),
+            safeTransferName(currentFileName!),
+            size,
+            hash.toString(),
+          ),
+        );
       }
       total = descriptions.fold(0, (a, b) => a + b.size);
       client = _client = _http(peer);
@@ -465,7 +528,7 @@ class LanTransferEngine extends ChangeNotifier {
         'token': token,
         'sender': name,
         'fingerprint': fingerprint,
-        'files': descriptions.map((d) => d.toJson()).toList()
+        'files': descriptions.map((d) => d.toJson()).toList(),
       });
       current();
       phase = LanTransferPhase.sending;
@@ -479,28 +542,34 @@ class LanTransferEngine extends ChangeNotifier {
         if (await files[i].length() != description.size) {
           throw const LanTransferException('file');
         }
-        final request =
-            await client.putUrl(_uri(peer, '/v1/file/$id/${description.id}'));
+        final request = await client.putUrl(
+          _uri(peer, '/v1/file/$id/${description.id}'),
+        );
         request.followRedirects = false;
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
         request.headers.contentType = ContentType.binary;
         request.contentLength = description.size;
         var thisFile = 0;
-        await request.addStream(files[i].openRead().map((chunk) {
-          current();
-          thisFile += chunk.length;
-          _progress(sent + thisFile);
-          return chunk;
-        }));
-        final response =
-            await request.close().timeout(const Duration(seconds: 120));
+        await request.addStream(
+          files[i].openRead().map((chunk) {
+            current();
+            thisFile += chunk.length;
+            _progress(sent + thisFile);
+            return chunk;
+          }),
+        );
+        final response = await request.close().timeout(
+              const Duration(seconds: 120),
+            );
         if (response.statusCode != 200) {
           await response.drain<void>();
           throw LanTransferException(
-              response.statusCode == 422 ? 'integrity' : 'network');
+            response.statusCode == 422 ? 'integrity' : 'network',
+          );
         }
         await response.drain<void>();
         current();
+        completedOutgoingPaths.add(files[i].path);
         sent += description.size;
       }
       await _post(client, peer, '/v1/complete/$id', {}, token: token);
@@ -528,8 +597,11 @@ class LanTransferEngine extends ChangeNotifier {
     }
   }
 
-  Future<void> _reply(HttpResponse response, int status,
-      [Object value = const {'ok': true}]) async {
+  Future<void> _reply(
+    HttpResponse response,
+    int status, [
+    Object value = const {'ok': true},
+  ]) async {
     response.statusCode = status;
     response.headers.contentType = ContentType.json;
     response.write(jsonEncode(value));
@@ -596,7 +668,9 @@ class LanTransferEngine extends ChangeNotifier {
     } catch (error) {
       try {
         await _reply(
-            request.response, error is LanTransferException ? 400 : 500);
+          request.response,
+          error is LanTransferException ? 400 : 500,
+        );
       } catch (_) {}
     }
   }
@@ -633,21 +707,31 @@ class LanTransferEngine extends ChangeNotifier {
       transferred = 0;
       _lastPercent = -2;
       peerName = _alias(body['sender']);
-      verificationCode =
-          pairingCode(fingerprint, body['fingerprint'], body['token']);
+      verificationCode = pairingCode(
+        fingerprint,
+        body['fingerprint'],
+        body['token'],
+      );
       phase = LanTransferPhase.waiting;
       errorCode = null;
       incoming = LanIncomingOffer(
-          peerName!, verificationCode!, List.unmodifiable(files));
+        peerName!,
+        verificationCode!,
+        List.unmodifiable(files),
+      );
       _notify();
       final callback = onIncoming;
       if (callback != null) {
-        unawaited(callback(incoming!).then((yes) {
-          if (!session!.approval.isCompleted) session.approval.complete(yes);
-        }));
+        unawaited(
+          callback(incoming!).then((yes) {
+            if (!session!.approval.isCompleted) session.approval.complete(yes);
+          }),
+        );
       }
-      final accepted = await session.approval.future
-          .timeout(const Duration(seconds: 60), onTimeout: () => false);
+      final accepted = await session.approval.future.timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => false,
+      );
       if (_closed || _session != session || !accepted) {
         await _reply(request.response, 403);
         if (_session == session) {
@@ -693,12 +777,17 @@ class LanTransferEngine extends ChangeNotifier {
 
   void _resetIdle(_IncomingSession session) {
     session.idle?.cancel();
-    session.idle = Timer(const Duration(seconds: 120),
-        () => unawaited(_cancelIncoming(session, 'timeout')));
+    session.idle = Timer(
+      const Duration(seconds: 120),
+      () => unawaited(_cancelIncoming(session, 'timeout')),
+    );
   }
 
   Future<void> _receive(
-      HttpRequest request, _IncomingSession session, String id) async {
+    HttpRequest request,
+    _IncomingSession session,
+    String id,
+  ) async {
     final description = session.files.where((f) => f.id == id).firstOrNull;
     if (description == null ||
         session.writing ||
@@ -710,14 +799,16 @@ class LanTransferEngine extends ChangeNotifier {
     session.writing = true;
     session.request = request;
     currentFileName = description.name;
-    final part =
-        session.partial = File('${directory.path}/.${session.id}_$id.part');
+    final part = session.partial = File(
+      '${directory.path}/.${session.id}_$id.part',
+    );
     final sink = part.openWrite();
     late StreamSubscription<List<int>> subscription;
     final input = session.input = StreamController<List<int>>(
-        onPause: () => subscription.pause(),
-        onResume: () => subscription.resume(),
-        onCancel: () => subscription.cancel());
+      onPause: () => subscription.pause(),
+      onResume: () => subscription.resume(),
+      onCancel: () => subscription.cancel(),
+    );
     subscription = session.subscription = request
         .timeout(const Duration(seconds: 60))
         .listen(input.add, onError: input.addError, onDone: input.close);
@@ -726,19 +817,21 @@ class LanTransferEngine extends ChangeNotifier {
     var size = 0;
     final completedBytes = transferred;
     try {
-      await sink.addStream(input.stream.map((chunk) {
-        if (_closed || _session != session) {
-          throw const LanTransferException('cancelled');
-        }
-        size += chunk.length;
-        if (size > description.size) {
-          throw const LanTransferException('protocol');
-        }
-        hash.add(chunk);
-        _resetIdle(session);
-        _progress(completedBytes + size);
-        return chunk;
-      }));
+      await sink.addStream(
+        input.stream.map((chunk) {
+          if (_closed || _session != session) {
+            throw const LanTransferException('cancelled');
+          }
+          size += chunk.length;
+          if (size > description.size) {
+            throw const LanTransferException('protocol');
+          }
+          hash.add(chunk);
+          _resetIdle(session);
+          _progress(completedBytes + size);
+          return chunk;
+        }),
+      );
       await sink.close();
       hash.close();
       if (_closed || _session != session) {
@@ -756,10 +849,20 @@ class LanTransferEngine extends ChangeNotifier {
         await destination.delete();
         throw const LanTransferException('cancelled');
       }
-      received.insert(
-          0,
-          LanReceivedFile(
-              destination, destination.uri.pathSegments.last, size));
+      var item =
+          LanReceivedFile(destination, destination.uri.pathSegments.last, size);
+      session.idle?.cancel();
+      if (onReceived != null) {
+        try {
+          item = await onReceived!(item);
+        } catch (_) {/* Keep the verified local file. */}
+      }
+      received.insert(0, item);
+      if (_closed || _session != session) {
+        _notify();
+        return;
+      }
+      _resetIdle(session);
       session.completed.add(id);
       transferred = completedBytes + size;
       session.partial = null;
@@ -776,10 +879,11 @@ class LanTransferEngine extends ChangeNotifier {
       if (_session == session) {
         try {
           await _reply(
-              request.response,
-              error is LanTransferException && error.code == 'integrity'
-                  ? 422
-                  : 500);
+            request.response,
+            error is LanTransferException && error.code == 'integrity'
+                ? 422
+                : 500,
+          );
         } catch (_) {}
         await _cancelIncoming(session, _error(error));
       }
@@ -799,8 +903,9 @@ class LanTransferEngine extends ChangeNotifier {
       final dot = safe.lastIndexOf('.');
       final stem = dot > 0 ? safe.substring(0, dot) : safe;
       final ext = dot > 0 ? safe.substring(dot) : '';
-      final result =
-          File('${directory.path}/${i == 0 ? safe : '$stem ($i)$ext'}');
+      final result = File(
+        '${directory.path}/${i == 0 ? safe : '$stem ($i)$ext'}',
+      );
       if (!await result.exists()) return result;
     }
     return File('${directory.path}/${_nonce()}_$safe');
@@ -847,8 +952,13 @@ class LanTransferEngine extends ChangeNotifier {
     if (peer == null || id == null || token == null) return;
     final client = _http(peer);
     try {
-      await _post(client, peer, '/v1/cancel/$id', {}, token: token)
-          .timeout(const Duration(seconds: 3));
+      await _post(
+        client,
+        peer,
+        '/v1/cancel/$id',
+        {},
+        token: token,
+      ).timeout(const Duration(seconds: 3));
     } catch (_) {
     } finally {
       client.close(force: true);

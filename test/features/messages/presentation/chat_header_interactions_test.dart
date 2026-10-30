@@ -10,8 +10,11 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// ignore: depend_on_referenced_packages
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:vocechat_client/features/messages/application/chat_drafts_provider.dart';
 import 'package:vocechat_client/features/sharing/application/incoming_share_provider.dart';
+import 'package:vocechat_client/features/messages/data/disk_attachment.dart';
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/core/storage/account_store.dart';
 import 'package:vocechat_client/features/messages/application/custom_stickers_provider.dart';
@@ -29,16 +32,19 @@ import 'package:vocechat_client/features/messages/presentation/pinned_message_ba
 import 'package:vocechat_client/l10n/generated/app_localizations.dart';
 
 const _name = 'A community with a very long group name that needs two lines';
-final _description =
-    List.filled(30, 'A complete community introduction.').join('\n');
+final _description = List.filled(
+  30,
+  'A complete community introduction.',
+).join('\n');
 const _target = MessageTarget.group(gid: 42);
 
 PinnedMessageSummary _pin(int mid) => PinnedMessageSummary(
-    mid: mid,
-    content: 'Pinned message $mid',
-    contentType: 'text/plain',
-    createdBy: 8,
-    createdAt: mid);
+      mid: mid,
+      content: 'Pinned message $mid',
+      contentType: 'text/plain',
+      createdBy: 8,
+      createdAt: mid,
+    );
 
 class _Auth extends AuthController {
   @override
@@ -50,11 +56,17 @@ class _Accounts extends AccountStore {
   void switchAccount() =>
       state = const AsyncData(AccountState(currentAccountId: 'first::8'));
   @override
-  Future<AccountState> build() async =>
-      const AccountState(currentAccountId: 'first::7', accounts: [
-        AccountConfig(
-            accountId: 'first::7', serverId: 'first', uid: 7, name: 'Me')
-      ]);
+  Future<AccountState> build() async => const AccountState(
+        currentAccountId: 'first::7',
+        accounts: [
+          AccountConfig(
+            accountId: 'first::7',
+            serverId: 'first',
+            uid: 7,
+            name: 'Me',
+          ),
+        ],
+      );
 }
 
 class _NativeCamera extends ImagePickerPlatform {
@@ -69,18 +81,20 @@ class _NativeCamera extends ImagePickerPlatform {
   }
 
   @override
-  Future<XFile?> getImageFromSource(
-      {required ImageSource source,
-      ImagePickerOptions options = const ImagePickerOptions()}) {
+  Future<XFile?> getImageFromSource({
+    required ImageSource source,
+    ImagePickerOptions options = const ImagePickerOptions(),
+  }) {
     photoSources.add(source);
     return _capture();
   }
 
   @override
-  Future<XFile?> getVideo(
-      {required ImageSource source,
-      CameraDevice preferredCameraDevice = CameraDevice.rear,
-      Duration? maxDuration}) {
+  Future<XFile?> getVideo({
+    required ImageSource source,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    Duration? maxDuration,
+  }) {
     videoSources.add(source);
     return _capture();
   }
@@ -93,18 +107,20 @@ class _Servers extends ServerStore {
 
 class _Users extends UserDirectory {
   @override
-  Future<Map<int, UserSummary>> build() async =>
-      const {8: UserSummary(uid: 8, name: 'Peer')};
+  Future<Map<int, UserSummary>> build() async => const {
+        8: UserSummary(uid: 8, name: 'Peer'),
+      };
 }
 
 class _Groups extends GroupDirectory {
   @override
   Future<Map<int, GroupSummary>> build() async => {
         42: GroupSummary(
-            gid: 42,
-            name: _name,
-            description: _description,
-            pinnedMessages: [_pin(10), _pin(20)]),
+          gid: 42,
+          name: _name,
+          description: _description,
+          pinnedMessages: [_pin(10), _pin(20)],
+        ),
       };
 }
 
@@ -119,43 +135,55 @@ class _Chat extends ChatController {
   final located = <int>[];
   final sentTexts = <(String, bool)>[];
   @override
-  Future<void> sendText(String text,
-      {List<int>? mentions, bool markdown = false}) async {
+  Future<void> sendText(
+    String text, {
+    List<int>? mentions,
+    bool markdown = false,
+  }) async {
     sentTexts.add((text, markdown));
   }
 
   final sentStickers = <(Uint8List, String, String?)>[];
   @override
-  Future<void> sendImage(
-      {required Uint8List bytes,
-      required String filename,
-      String? contentType}) async {
+  Future<void> sendImage({
+    required Uint8List bytes,
+    required String filename,
+    String? contentType,
+  }) async {
     sentStickers.add((bytes, filename, contentType));
   }
 
   final sentDiskFiles = <(String, String)>[];
   @override
-  Future<void> sendFile(
-      {required File file,
-      required String filename,
-      String? contentType}) async {
+  Future<void> sendFile({
+    required File file,
+    required String filename,
+    String? contentType,
+    bool ownsFile = false,
+  }) async {
     sentDiskFiles.add((file.path, filename));
+    if (ownsFile) await discardOwnedAttachment(file);
   }
 
   ChatMessage message(int mid) => ChatMessage(
-      mid: mid,
-      fromUid: 8,
-      createdAt: 1000,
-      target: _target,
-      detail: MessageDetail.normal(
-          contentType: 'text/plain', content: 'Message $mid'));
+        mid: mid,
+        fromUid: 8,
+        createdAt: 1000,
+        target: _target,
+        detail: MessageDetail.normal(
+          contentType: 'text/plain',
+          content: 'Message $mid',
+        ),
+      );
   @override
   Future<List<ChatMessage>> build(MessageTarget target) async => [message(30)];
   @override
   Future<void> loadMore() async {}
   @override
-  Future<bool> ensureMessageLoaded(int mid,
-      {bool Function()? shouldContinue}) async {
+  Future<bool> ensureMessageLoaded(
+    int mid, {
+    bool Function()? shouldContinue,
+  }) async {
     located.add(mid);
     state = AsyncData([message(30), message(mid)]);
     return true;
@@ -177,6 +205,11 @@ class _DelayedDrafts extends ChatDrafts {
   Future<void> flush() async {}
 }
 
+class _TestPaths extends PathProviderPlatform {
+  @override
+  Future<String?> getTemporaryPath() async => Directory.systemTemp.path;
+}
+
 Widget _app(Widget child) => MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: AppL10n.localizationsDelegates,
@@ -185,29 +218,42 @@ Widget _app(Widget child) => MaterialApp(
     );
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
-  Future<ProviderContainer> pumpChat(WidgetTester tester,
-      {double width = 390,
-      Directory? stickerDocuments,
-      String? draft,
-      IncomingShareSelection? share,
-      ChatDrafts? draftStore}) async {
+  late PathProviderPlatform previousPaths;
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    previousPaths = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = _TestPaths();
+  });
+  tearDown(() => PathProviderPlatform.instance = previousPaths);
+  Future<ProviderContainer> pumpChat(
+    WidgetTester tester, {
+    double width = 390,
+    Directory? stickerDocuments,
+    String? draft,
+    IncomingShareSelection? share,
+    ChatDrafts? draftStore,
+  }) async {
     tester.view.physicalSize = Size(width, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final container = ProviderContainer(overrides: [
-      authControllerProvider.overrideWith(_Auth.new),
-      accountStoreProvider.overrideWith(_Accounts.new),
-      if (draftStore != null) chatDraftsProvider.overrideWith(() => draftStore),
-      if (stickerDocuments != null)
-        stickerDocumentsProvider.overrideWith((ref) async => stickerDocuments),
-      serverStoreProvider.overrideWith(_Servers.new),
-      userDirectoryProvider.overrideWith(_Users.new),
-      groupDirectoryProvider.overrideWith(_Groups.new),
-      readIndexProvider.overrideWith(_ReadIndex.new),
-      chatControllerProvider(_target).overrideWith(_Chat.new),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(_Auth.new),
+        accountStoreProvider.overrideWith(_Accounts.new),
+        if (draftStore != null)
+          chatDraftsProvider.overrideWith(() => draftStore),
+        if (stickerDocuments != null)
+          stickerDocumentsProvider.overrideWith(
+            (ref) async => stickerDocuments,
+          ),
+        serverStoreProvider.overrideWith(_Servers.new),
+        userDirectoryProvider.overrideWith(_Users.new),
+        groupDirectoryProvider.overrideWith(_Groups.new),
+        readIndexProvider.overrideWith(_ReadIndex.new),
+        chatControllerProvider(_target).overrideWith(_Chat.new),
+      ],
+    );
     addTearDown(container.dispose);
     container.listen(accountStoreProvider, (_, __) {});
     await container.read(accountStoreProvider.future);
@@ -225,82 +271,169 @@ void main() {
     if (share != null) {
       container.read(selectedIncomingShareProvider.notifier).state = share;
     }
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: _app(const ChatScreen(id: 'g-42')),
-    ));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: _app(const ChatScreen(id: 'g-42')),
+      ),
+    );
     await tester.pumpAndSettle();
     return container;
   }
 
   testWidgets(
-      'text draft restores after remount, clears on send and is isolated on account switch',
-      (tester) async {
-    final first = await pumpChat(tester, draft: 'saved before restart');
-    final input = find.byType(TextField);
-    expect(tester.widget<TextField>(input).controller!.text,
-        'saved before restart');
-    await tester.enterText(input, 'new unfinished draft');
-    await tester.runAsync(
-        () => first.read(chatDraftsProvider('first::7').notifier).flush());
-    await tester.pumpWidget(const SizedBox());
-    await tester.runAsync(() async => Future<void>.delayed(Duration.zero));
-    final next = await pumpChat(tester);
-    expect(tester.widget<TextField>(input).controller!.text,
-        'new unfinished draft');
-    final chat = next.read(chatControllerProvider(_target).notifier) as _Chat;
-    expect(chat.sentTexts, isEmpty);
-    await tester.tap(find.byTooltip('Send'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(chat.sentTexts.single.$1, 'new unfinished draft');
-    expect(next.read(chatDraftsProvider('first::7')).requireValue, isEmpty);
-    await tester.enterText(input, 'private account draft');
-    await tester.pump();
-    (next.read(accountStoreProvider.notifier) as _Accounts).switchAccount();
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(input).controller!.text, isEmpty);
-    expect(next.read(chatDraftsProvider('first::7')).requireValue['g-42']!.text,
-        'private account draft');
-    expect(tester.takeException(), isNull);
-  });
+    'text draft restores after remount, clears on send and is isolated on account switch',
+    (tester) async {
+      final first = await pumpChat(tester, draft: 'saved before restart');
+      final input = find.byType(TextField);
+      expect(
+        tester.widget<TextField>(input).controller!.text,
+        'saved before restart',
+      );
+      await tester.enterText(input, 'new unfinished draft');
+      await tester.runAsync(
+        () => first.read(chatDraftsProvider('first::7').notifier).flush(),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => Future<void>.delayed(Duration.zero));
+      final next = await pumpChat(tester);
+      expect(
+        tester.widget<TextField>(input).controller!.text,
+        'new unfinished draft',
+      );
+      final chat = next.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(chat.sentTexts, isEmpty);
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(chat.sentTexts.single.$1, 'new unfinished draft');
+      expect(next.read(chatDraftsProvider('first::7')).requireValue, isEmpty);
+      await tester.enterText(input, 'private account draft');
+      await tester.pump();
+      (next.read(accountStoreProvider.notifier) as _Accounts).switchAccount();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+      expect(
+        next.read(chatDraftsProvider('first::7')).requireValue['g-42']!.text,
+        'private account draft',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
-      'system share appends to a restored draft and stages files without sending',
-      (tester) async {
-    final source = File('test/fixtures/stickers/red.png');
-    final container = await pumpChat(tester,
+    'system share appends to a restored draft and stages files without sending',
+    (tester) async {
+      final source = File('test/fixtures/stickers/red.png');
+      final container = await pumpChat(
+        tester,
         draft: 'existing draft',
         share: IncomingShareSelection(
-            'first::7',
-            'g-42',
-            IncomingShare(id: 'shared-test', text: 'shared link', files: [
-              SharedFile(source.absolute.path, 'shared.png', 'image/png',
-                  source.lengthSync())
-            ])));
-    for (var i = 0; i < 20 && find.text('shared.png').evaluate().isEmpty; i++) {
-      await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)));
-      await tester.pump();
-    }
-    await tester.pumpAndSettle();
-    final chat =
-        container.read(chatControllerProvider(_target).notifier) as _Chat;
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        'existing draft\nshared link');
-    expect(find.text('shared.png'), findsOneWidget);
-    expect(chat.sentTexts, isEmpty);
-    expect(chat.sentStickers, isEmpty);
-    expect(container.read(selectedIncomingShareProvider), isNull);
-    await tester.tap(find.byTooltip('Send'));
-    await tester.pumpAndSettle();
-    expect(chat.sentTexts.single.$1, 'existing draft\nshared link');
-    expect(chat.sentStickers.single.$2, 'shared.png');
-    expect(tester.takeException(), isNull);
-  });
+          'first::7',
+          'g-42',
+          IncomingShare(
+            id: 'shared-test',
+            text: 'shared link',
+            files: [
+              SharedFile(
+                source.absolute.path,
+                'shared.png',
+                'image/png',
+                source.lengthSync(),
+              ),
+            ],
+          ),
+        ),
+      );
+      for (var i = 0;
+          i < 20 && find.text('shared.png').evaluate().isEmpty;
+          i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      final chat =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'existing draft\nshared link',
+      );
+      expect(find.text('shared.png'), findsOneWidget);
+      expect(chat.sentTexts, isEmpty);
+      expect(chat.sentStickers, isEmpty);
+      expect(container.read(selectedIncomingShareProvider), isNull);
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      expect(chat.sentTexts.single.$1, 'existing draft\nshared link');
+      expect(chat.sentDiskFiles.single.$2, 'shared.png');
+      expect(source.existsSync(), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('late draft restoration never overwrites newly typed text',
-      (tester) async {
+  testWidgets(
+    '80 MB shared file stages by path and survives native acknowledgement',
+    (tester) async {
+      final directory = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('vc-shared-large-'),
+      ))!;
+      final source = File('${directory.path}/large.bin');
+      await tester.runAsync(() async {
+        final handle = await source.open(mode: FileMode.write);
+        await handle.truncate(80 * 1024 * 1024);
+        await handle.close();
+      });
+      addTearDown(() => directory.delete(recursive: true));
+      final container = await pumpChat(
+        tester,
+        share: IncomingShareSelection(
+          'first::7',
+          'g-42',
+          IncomingShare(
+            id: 'shared-large',
+            text: '',
+            files: [
+              SharedFile(
+                source.path,
+                'large.bin',
+                'application/octet-stream',
+                80 * 1024 * 1024,
+              ),
+            ],
+          ),
+        ),
+      );
+      for (var i = 0;
+          i < 150 && find.text('large.bin').evaluate().isEmpty;
+          i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('large.bin'), findsOneWidget);
+      final controller =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(controller.sentDiskFiles, isEmpty);
+      expect(controller.sentStickers, isEmpty);
+      expect(container.read(selectedIncomingShareProvider), isNull);
+      await tester.tap(find.byTooltip('Send'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.sentDiskFiles.single.$2, 'large.bin');
+      expect(controller.sentStickers, isEmpty);
+      expect(source.existsSync(), isTrue);
+    },
+  );
+
+  testWidgets('late draft restoration never overwrites newly typed text', (
+    tester,
+  ) async {
     final delayed = _DelayedDrafts();
     await pumpChat(tester, draftStore: delayed);
     final input = find.byType(TextField);
@@ -312,15 +445,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  Future<_NativeCamera> setupCamera(
-      {bool galleryAllowed = true, bool galleryVideo = false}) async {
+  Future<_NativeCamera> setupCamera({
+    bool galleryAllowed = true,
+    bool galleryVideo = false,
+  }) async {
     final root = Directory.systemTemp.createTempSync('voce-gallery-video-');
     addTearDown(() => root.deleteSync(recursive: true));
     final video = File('${root.path}/saved-video.mp4')
       ..writeAsBytesSync([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
     final photo = File('${root.path}/saved-photo.png')
       ..writeAsBytesSync(
-          File('test/fixtures/stickers/red.png').readAsBytesSync());
+        File('test/fixtures/stickers/red.png').readAsBytesSync(),
+      );
     final original = ImagePickerPlatform.instance;
     final camera = _NativeCamera();
     ImagePickerPlatform.instance = camera;
@@ -332,8 +468,11 @@ void main() {
         case 'requestPermissionExtend':
           return galleryAllowed ? 3 : 2;
         case 'getAssetPathList':
-          expect((call.arguments as Map)['type'], 3,
-              reason: 'images and videos');
+          expect(
+            (call.arguments as Map)['type'],
+            3,
+            reason: 'images and videos',
+          );
           return {
             'data': galleryVideo
                 ? [
@@ -342,9 +481,9 @@ void main() {
                       'name': 'Recent',
                       'assetCount': 2,
                       'isAll': true,
-                    }
+                    },
                   ]
-                : []
+                : [],
           };
         case 'getAssetListPaged':
           return {
@@ -363,8 +502,8 @@ void main() {
                 'width': 24,
                 'height': 18,
                 'title': 'saved-photo.png',
-              }
-            ]
+              },
+            ],
           };
         case 'getThumb':
           return File('test/fixtures/stickers/red.png').readAsBytesSync();
@@ -375,30 +514,45 @@ void main() {
         case 'getSystemVersion':
           return '36';
         case 'getOriginBytes':
-          return Uint8List.fromList(
-              [0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
+          return Uint8List.fromList([
+            0,
+            0,
+            0,
+            24,
+            102,
+            116,
+            121,
+            112,
+            105,
+            115,
+            111,
+            109,
+          ]);
         default:
           return null;
       }
     });
-    addTearDown(() => TestDefaultBinaryMessengerBinding
-        .instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(gallery, null));
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(gallery, null),
+    );
     return camera;
   }
 
   Future<void> flushIo(WidgetTester tester, bool Function() finished) async {
     for (var i = 0; i < 100 && !finished(); i++) {
       await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
       await tester.pump(const Duration(milliseconds: 10));
     }
     expect(finished(), isTrue);
     await tester.pumpAndSettle();
   }
 
-  testWidgets('150 MB APK stages a disk path and sends without picker bytes',
-      (tester) async {
+  testWidgets('150 MB APK stages a disk path and sends without picker bytes', (
+    tester,
+  ) async {
     final dir = Directory.systemTemp.createTempSync('vc-picker-large-');
     addTearDown(() => dir.deleteSync(recursive: true));
     final file = File('${dir.path}/test.apk');
@@ -410,31 +564,37 @@ void main() {
     FilePicker.platform = FilePickerIO();
     addTearDown(() => FilePicker.platform = original);
     const channel = MethodChannel(
-        'miguelruivo.flutter.plugins.filepicker', JSONMethodCodec());
+      'miguelruivo.flutter.plugins.filepicker',
+      JSONMethodCodec(),
+    );
     var pickerCalled = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       pickerCalled = true;
       expect((call.arguments as Map)['withData'], isFalse);
       return [
-        {'path': file.path, 'name': 'test.apk', 'size': file.lengthSync()}
+        {'path': file.path, 'name': 'test.apk', 'size': file.lengthSync()},
       ];
     });
-    addTearDown(() => TestDefaultBinaryMessengerBinding
-        .instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null));
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
     final container = await pumpChat(tester);
     await setupCamera();
     await tester.tap(find.byTooltip('Attach').first);
     await tester.pumpAndSettle();
     final quick = find.byKey(const ValueKey('attachment-quick-transfer'));
     expect(quick, findsOneWidget);
-    expect(tester.getCenter(quick).dx,
-        lessThan(tester.getCenter(find.text('Files')).dx));
+    expect(
+      tester.getCenter(quick).dx,
+      lessThan(tester.getCenter(find.text('Files')).dx),
+    );
     await tester.tap(find.text('Files'));
     for (var i = 0; i < 100 && find.text('test.apk').evaluate().isEmpty; i++) {
       await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
       await tester.pump(const Duration(milliseconds: 10));
     }
     await tester.pumpAndSettle();
@@ -451,8 +611,9 @@ void main() {
   });
 
   for (final merge in [true, false]) {
-    testWidgets('matching JPEG/MOV pair requires user choice (merge=$merge)',
-        (tester) async {
+    testWidgets('matching JPEG/MOV pair requires user choice (merge=$merge)', (
+      tester,
+    ) async {
       FilePickerIO.registerWith();
       final original = FilePicker.platform;
       FilePicker.platform = FilePickerIO();
@@ -460,225 +621,274 @@ void main() {
       final photo = File('test/fixtures/live_photos/still.jpg').absolute;
       final movie = File('test/fixtures/live_photos/paired.mov').absolute;
       const channel = MethodChannel(
-          'miguelruivo.flutter.plugins.filepicker', JSONMethodCodec());
+        'miguelruivo.flutter.plugins.filepicker',
+        JSONMethodCodec(),
+      );
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-              channel,
-              (_) async => [
-                    {
-                      'path': photo.path,
-                      'name': 'IMG_1234.JPG',
-                      'size': photo.lengthSync()
-                    },
-                    {
-                      'path': movie.path,
-                      'name': 'IMG_1234.MOV',
-                      'size': movie.lengthSync()
-                    },
-                  ]);
-      addTearDown(() => TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null));
+        channel,
+        (_) async => [
+          {
+            'path': photo.path,
+            'name': 'IMG_1234.JPG',
+            'size': photo.lengthSync(),
+          },
+          {
+            'path': movie.path,
+            'name': 'IMG_1234.MOV',
+            'size': movie.lengthSync(),
+          },
+        ],
+      );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
       final container = await pumpChat(tester);
       await setupCamera();
       await tester.tap(find.byTooltip('Attach').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Files'));
       await flushIo(
-          tester, () => find.text('Import Live Photos').evaluate().isNotEmpty);
+        tester,
+        () => find.text('Import Live Photos').evaluate().isNotEmpty,
+      );
       final controller =
           container.read(chatControllerProvider(_target).notifier) as _Chat;
       expect(controller.sentStickers, isEmpty);
       await tester.tap(find.text(merge ? 'Combine' : 'Keep separate'));
       await flushIo(
-          tester,
-          () => find
-              .text(merge ? 'IMG_1234_MP.jpg' : 'IMG_1234.JPG')
-              .evaluate()
-              .isNotEmpty);
-      if (!merge)
+        tester,
+        () => find
+            .text(merge ? 'IMG_1234_MP.jpg' : 'IMG_1234.JPG')
+            .evaluate()
+            .isNotEmpty,
+      );
+      if (!merge) {
         await flushIo(
-            tester, () => find.text('IMG_1234.MOV').evaluate().isNotEmpty);
+          tester,
+          () => find.text('IMG_1234.MOV').evaluate().isNotEmpty,
+        );
+      }
       await tester.tap(find.byTooltip('Send'));
       await tester.pumpAndSettle();
-      expect(controller.sentStickers, hasLength(1));
-      expect(
-          MotionPhoto.inspectBytes(controller.sentStickers.single.$1) != null,
-          merge);
-      expect(controller.sentDiskFiles.length, merge ? 0 : 1);
+      expect(controller.sentStickers, hasLength(merge ? 1 : 0));
+      if (merge) {
+        expect(
+          MotionPhoto.inspectBytes(controller.sentStickers.single.$1),
+          isNotNull,
+        );
+      }
+      expect(controller.sentDiskFiles.length, merge ? 0 : 2);
       expect(tester.takeException(), isNull);
     });
   }
 
   testWidgets(
-      'composer removes Markdown and its extra menu and sends ordinary text',
-      (tester) async {
-    final container = await pumpChat(tester);
-    expect(
+    'composer removes Markdown and its extra menu and sends ordinary text',
+    (tester) async {
+      final container = await pumpChat(tester);
+      expect(
         find.descendant(
-            of: find.byKey(const ValueKey('chat-composer')),
-            matching: find.byTooltip('More')),
-        findsNothing);
-    expect(find.byTooltip('Attach'), findsOneWidget);
-    expect(find.byIcon(Icons.attach_file), findsOneWidget);
-    expect(find.byIcon(Icons.folder), findsNothing);
-    expect(find.text('Markdown'), findsNothing);
-    expect(find.text('Video message'), findsNothing);
-    await tester.enterText(find.byType(TextField), '**plain text**');
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Send'));
-    await tester.pump();
-    final chat =
-        container.read(chatControllerProvider(_target).notifier) as _Chat;
-    expect(chat.sentTexts, [('**plain text**', false)]);
-  });
+          of: find.byKey(const ValueKey('chat-composer')),
+          matching: find.byTooltip('More'),
+        ),
+        findsNothing,
+      );
+      expect(find.byTooltip('Attach'), findsOneWidget);
+      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+      expect(find.byIcon(Icons.folder), findsNothing);
+      expect(find.text('Markdown'), findsNothing);
+      expect(find.text('Video message'), findsNothing);
+      await tester.enterText(find.byType(TextField), '**plain text**');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+      final chat =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(chat.sentTexts, [('**plain text**', false)]);
+    },
+  );
 
   for (final video in [false, true]) {
     testWidgets(
-        '${video ? 'hold' : 'tap'} camera uses native ${video ? 'video' : 'photo'} and stages before sending',
-        (tester) async {
-      final camera = await setupCamera();
-      final root = Directory.systemTemp.createTempSync('voce-camera-test-');
-      addTearDown(() => root.deleteSync(recursive: true));
-      final bytes = video
-          ? Uint8List.fromList(
-              [0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109])
-          : File('test/fixtures/stickers/red.png').readAsBytesSync();
-      final file = File('${root.path}/capture.${video ? 'mp4' : 'png'}')
-        ..writeAsBytesSync(bytes);
-      camera.result = XFile(file.path);
-      final container = await pumpChat(tester, width: 320);
-      final chat =
-          container.read(chatControllerProvider(_target).notifier) as _Chat;
-      await tester.enterText(find.byType(TextField), 'Keep draft');
-      await tester.tap(find.byTooltip('Attach').first);
-      await tester.pumpAndSettle();
-      final tile = find.byKey(const ValueKey('attachment-system-camera'));
-      expect(find.text('Tap for photo · Hold for video'), findsOneWidget);
-      if (video) {
-        await tester.longPress(tile);
-      } else {
-        await tester.tap(tile);
-      }
-      await flushIo(tester,
-          () => find.text(file.uri.pathSegments.last).evaluate().isNotEmpty);
-      expect(camera.photoSources, video ? isEmpty : [ImageSource.camera]);
-      expect(camera.videoSources, video ? [ImageSource.camera] : isEmpty);
-      expect(chat.sentStickers, isEmpty);
-      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
-          'Keep draft');
-      await tester.tap(find.byTooltip('Send'));
-      await tester.pumpAndSettle();
-      expect(chat.sentStickers.single.$1, bytes);
-      expect(chat.sentStickers.single.$3, video ? 'video/mp4' : 'image/png');
-      expect(chat.sentTexts, [('Keep draft', false)]);
-      expect(tester.takeException(), isNull);
-    });
+      '${video ? 'hold' : 'tap'} camera uses native ${video ? 'video' : 'photo'} and stages before sending',
+      (tester) async {
+        final camera = await setupCamera();
+        final root = Directory.systemTemp.createTempSync('voce-camera-test-');
+        addTearDown(() => root.deleteSync(recursive: true));
+        final bytes = video
+            ? Uint8List.fromList([
+                0,
+                0,
+                0,
+                24,
+                102,
+                116,
+                121,
+                112,
+                105,
+                115,
+                111,
+                109,
+              ])
+            : File('test/fixtures/stickers/red.png').readAsBytesSync();
+        final file = File('${root.path}/capture.${video ? 'mp4' : 'png'}')
+          ..writeAsBytesSync(bytes);
+        camera.result = XFile(file.path);
+        final container = await pumpChat(tester, width: 320);
+        final chat =
+            container.read(chatControllerProvider(_target).notifier) as _Chat;
+        await tester.enterText(find.byType(TextField), 'Keep draft');
+        await tester.tap(find.byTooltip('Attach').first);
+        await tester.pumpAndSettle();
+        final tile = find.byKey(const ValueKey('attachment-system-camera'));
+        expect(find.text('Tap for photo · Hold for video'), findsOneWidget);
+        if (video) {
+          await tester.longPress(tile);
+        } else {
+          await tester.tap(tile);
+        }
+        await flushIo(
+          tester,
+          () => find.text(file.uri.pathSegments.last).evaluate().isNotEmpty,
+        );
+        expect(camera.photoSources, video ? isEmpty : [ImageSource.camera]);
+        expect(camera.videoSources, video ? [ImageSource.camera] : isEmpty);
+        expect(chat.sentStickers, isEmpty);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Keep draft',
+        );
+        await tester.tap(find.byTooltip('Send'));
+        await tester.pumpAndSettle();
+        expect(chat.sentStickers.single.$1, bytes);
+        expect(chat.sentStickers.single.$3, video ? 'video/mp4' : 'image/png');
+        expect(chat.sentTexts, [('Keep draft', false)]);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets(
-      'camera remains available when photo-library permission is denied; cancelling preserves draft',
-      (tester) async {
-    final camera = await setupCamera(galleryAllowed: false);
-    final container = await pumpChat(tester);
-    await tester.enterText(find.byType(TextField), 'Unfinished');
-    await tester.tap(find.byTooltip('Attach').first);
-    await tester.pumpAndSettle();
-    final tile = find.byKey(const ValueKey('attachment-system-camera'));
-    expect(tile, findsOneWidget);
-    await tester.tap(tile);
-    await tester.pumpAndSettle();
-    expect(camera.photoSources, [ImageSource.camera]);
-    expect(tile, findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    Navigator.of(tester.element(tile)).pop();
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        'Unfinished');
-    expect(
+    'camera remains available when photo-library permission is denied; cancelling preserves draft',
+    (tester) async {
+      final camera = await setupCamera(galleryAllowed: false);
+      final container = await pumpChat(tester);
+      await tester.enterText(find.byType(TextField), 'Unfinished');
+      await tester.tap(find.byTooltip('Attach').first);
+      await tester.pumpAndSettle();
+      final tile = find.byKey(const ValueKey('attachment-system-camera'));
+      expect(tile, findsOneWidget);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(camera.photoSources, [ImageSource.camera]);
+      expect(tile, findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      Navigator.of(tester.element(tile)).pop();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Unfinished',
+      );
+      expect(
         (container.read(chatControllerProvider(_target).notifier) as _Chat)
             .sentStickers,
-        isEmpty);
-  });
+        isEmpty,
+      );
+    },
+  );
 
   testWidgets(
-      'capture permission failure restores camera controls and permits retry',
-      (tester) async {
-    final camera = await setupCamera();
-    camera.failure = PlatformException(code: 'camera_access_denied');
-    await pumpChat(tester);
-    await tester.tap(find.byTooltip('Attach').first);
-    await tester.pumpAndSettle();
-    final tile = find.byKey(const ValueKey('attachment-system-camera'));
-    await tester.longPress(tile);
-    await tester.pumpAndSettle();
-    expect(
+    'capture permission failure restores camera controls and permits retry',
+    (tester) async {
+      final camera = await setupCamera();
+      camera.failure = PlatformException(code: 'camera_access_denied');
+      await pumpChat(tester);
+      await tester.tap(find.byTooltip('Attach').first);
+      await tester.pumpAndSettle();
+      final tile = find.byKey(const ValueKey('attachment-system-camera'));
+      await tester.longPress(tile);
+      await tester.pumpAndSettle();
+      expect(
         find.text(
-            'Permission denied — enable microphone/camera access in system settings'),
-        findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    camera.failure = null;
-    await tester.tap(tile);
-    await tester.pumpAndSettle();
-    expect(camera.videoSources, [ImageSource.camera]);
-    expect(camera.photoSources, [ImageSource.camera]);
-    expect(tester.takeException(), isNull);
-  });
+          'Permission denied — enable microphone/camera access in system settings',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      camera.failure = null;
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(camera.videoSources, [ImageSource.camera]);
+      expect(camera.photoSources, [ImageSource.camera]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
-      'only one capture is active and account switching discards its return',
-      (tester) async {
-    final camera = await setupCamera();
-    camera.gate = Completer<XFile?>();
-    final container = await pumpChat(tester);
-    await tester.tap(find.byTooltip('Attach').first);
-    await tester.pumpAndSettle();
-    final tile = find.byKey(const ValueKey('attachment-system-camera'));
-    await tester.tap(tile);
-    await tester.pump();
-    await tester.tap(tile);
-    expect(camera.photoSources, hasLength(1));
-    (container.read(accountStoreProvider.notifier) as _Accounts)
-        .switchAccount();
-    camera.gate!
-        .complete(XFile(File('test/fixtures/stickers/red.png').absolute.path));
-    await flushIo(tester, () => tile.evaluate().isEmpty);
-    expect(find.text('red.png'), findsNothing);
-    expect(
+    'only one capture is active and account switching discards its return',
+    (tester) async {
+      final camera = await setupCamera();
+      camera.gate = Completer<XFile?>();
+      final container = await pumpChat(tester);
+      await tester.tap(find.byTooltip('Attach').first);
+      await tester.pumpAndSettle();
+      final tile = find.byKey(const ValueKey('attachment-system-camera'));
+      await tester.tap(tile);
+      await tester.pump();
+      await tester.tap(tile);
+      expect(camera.photoSources, hasLength(1));
+      (container.read(accountStoreProvider.notifier) as _Accounts)
+          .switchAccount();
+      camera.gate!.complete(
+        XFile(File('test/fixtures/stickers/red.png').absolute.path),
+      );
+      await flushIo(tester, () => tile.evaluate().isEmpty);
+      expect(find.text('red.png'), findsNothing);
+      expect(
         (container.read(chatControllerProvider(_target).notifier) as _Chat)
             .sentStickers,
-        isEmpty);
-  });
+        isEmpty,
+      );
+    },
+  );
 
   testWidgets(
-      'image panel shows photos and videos together and stages a mixed selection',
-      (tester) async {
-    await setupCamera(galleryVideo: true);
-    final container = await pumpChat(tester);
-    await tester.tap(find.byTooltip('Attach').first);
-    await tester.pumpAndSettle();
-    expect(find.text('0:12'), findsOneWidget);
-    expect(find.byType(AssetEntityImage), findsNWidgets(2));
-    await tester.tap(find.text('0:12'));
-    await tester.tap(find.byType(AssetEntityImage).last);
-    await tester.pump();
-    await tester.tap(find.text('Send (2)'));
-    await flushIo(
-        tester, () => find.text('saved-photo.png').evaluate().isNotEmpty);
-    expect(find.text('saved-video.mp4'), findsOneWidget);
-    expect(find.text('saved-photo.png'), findsOneWidget);
-    final chat =
-        container.read(chatControllerProvider(_target).notifier) as _Chat;
-    expect(chat.sentStickers, isEmpty);
-    await tester.tap(find.byTooltip('Send'));
-    await tester.pumpAndSettle();
-    expect(
-        chat.sentStickers.map((file) => file.$3), ['video/mp4', 'image/png']);
-    expect(tester.takeException(), isNull);
-  });
+    'image panel shows photos and videos together and stages a mixed selection',
+    (tester) async {
+      await setupCamera(galleryVideo: true);
+      final container = await pumpChat(tester);
+      await tester.tap(find.byTooltip('Attach').first);
+      await tester.pumpAndSettle();
+      expect(find.text('0:12'), findsOneWidget);
+      expect(find.byType(AssetEntityImage), findsNWidgets(2));
+      await tester.tap(find.text('0:12'));
+      await tester.tap(find.byType(AssetEntityImage).last);
+      await tester.pump();
+      await tester.tap(find.text('Send (2)'));
+      await flushIo(
+        tester,
+        () => find.text('saved-photo.png').evaluate().isNotEmpty,
+      );
+      expect(find.text('saved-video.mp4'), findsOneWidget);
+      expect(find.text('saved-photo.png'), findsOneWidget);
+      final chat =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(chat.sentStickers, isEmpty);
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      expect(chat.sentStickers.map((file) => file.$3), [
+        'video/mp4',
+        'image/png',
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('composer emoji button inserts at caret and replaces selection',
-      (tester) async {
+  testWidgets('composer emoji button inserts at caret and replaces selection', (
+    tester,
+  ) async {
     await pumpChat(tester);
     final input = find.byType(TextField);
     await tester.enterText(input, 'hello world');
@@ -700,15 +910,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('saved sticker sends once without clearing the composed text',
-      (tester) async {
+  testWidgets('saved sticker sends once without clearing the composed text', (
+    tester,
+  ) async {
     final root = Directory.systemTemp.createTempSync('voce-sticker-composer-');
     addTearDown(() => root.deleteSync(recursive: true));
-    final container =
-        await pumpChat(tester, stickerDocuments: root, width: 320);
+    final container = await pumpChat(
+      tester,
+      stickerDocuments: root,
+      width: 320,
+    );
     final bytes = File('test/fixtures/stickers/red.png').readAsBytesSync();
-    final saved = await tester.runAsync(() =>
-        container.read(customStickersProvider('first::7').notifier).add(bytes));
+    final saved = await tester.runAsync(
+      () => container
+          .read(customStickersProvider('first::7').notifier)
+          .add(bytes),
+    );
     await tester.pump();
     final input = find.byType(TextField);
     await tester.enterText(input, 'Keep my unfinished draft');
@@ -721,69 +938,81 @@ void main() {
         container.read(chatControllerProvider(_target).notifier) as _Chat;
     for (var i = 0; i < 100 && chat.sentStickers.isEmpty; i++) {
       await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
       await tester.pump(const Duration(milliseconds: 10));
     }
     await tester.pumpAndSettle();
     expect(chat.sentStickers, hasLength(1));
     expect(chat.sentStickers.single.$1, bytes);
     expect(chat.sentStickers.single.$3, 'image/png');
-    expect(tester.widget<TextField>(input).controller!.text,
-        'Keep my unfinished draft');
+    expect(
+      tester.widget<TextField>(input).controller!.text,
+      'Keep my unfinished draft',
+    );
     expect(find.byType(ComposerEmojiPicker), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   for (final width in [320.0, 390.0, 900.0]) {
-    testWidgets('long group title and full introduction at width $width',
-        (tester) async {
+    testWidgets('long group title and full introduction at width $width', (
+      tester,
+    ) async {
       await pumpChat(tester, width: width);
       final title = tester.widget<Text>(find.text(_name));
       expect(title.maxLines, 2);
-      expect(tester.getTopLeft(find.byType(PinnedMessageBar)).dy,
-          greaterThan(tester.getBottomLeft(find.byType(ChatHeaderDetails)).dy));
+      expect(
+        tester.getTopLeft(find.byType(PinnedMessageBar)).dy,
+        greaterThan(tester.getBottomLeft(find.byType(ChatHeaderDetails)).dy),
+      );
       await tester.tap(find.byType(ChatHeaderDetails));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(SelectableText, _name), findsOneWidget);
       expect(find.widgetWithText(SelectableText, _description), findsOneWidget);
       await tester.drag(
-          find.byType(SingleChildScrollView), const Offset(0, -500));
+        find.byType(SingleChildScrollView),
+        const Offset(0, -500),
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('pin bar cycles, locates, highlights and opens the full pin list',
-      (tester) async {
-    final container = await pumpChat(tester);
-    final chat =
-        container.read(chatControllerProvider(_target).notifier) as _Chat;
-    expect(find.text('Pinned message 20'), findsOneWidget);
-    await tester.tap(find.text('Pinned message 20'));
-    await tester.pumpAndSettle();
-    expect(chat.located, [20]);
-    expect(find.text('Message 20'), findsOneWidget);
-    expect(
+  testWidgets(
+    'pin bar cycles, locates, highlights and opens the full pin list',
+    (tester) async {
+      final container = await pumpChat(tester);
+      final chat =
+          container.read(chatControllerProvider(_target).notifier) as _Chat;
+      expect(find.text('Pinned message 20'), findsOneWidget);
+      await tester.tap(find.text('Pinned message 20'));
+      await tester.pumpAndSettle();
+      expect(chat.located, [20]);
+      expect(find.text('Message 20'), findsOneWidget);
+      expect(
         tester
             .widgetList<MessageRow>(find.byType(MessageRow))
             .any((row) => row.message.mid == 20 && row.highlighted),
-        isTrue);
-    expect(find.text('Pinned message 10'), findsOneWidget);
-    await tester.tap(find.text('Pinned message 10'));
-    await tester.pumpAndSettle();
-    expect(chat.located, [20, 10]);
-    await tester.tap(find.byIcon(Icons.format_list_bulleted));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Pinned message 10').last);
-    await tester.pumpAndSettle();
-    expect(chat.located, [20, 10, 10]);
-    expect(tester.takeException(), isNull);
-    // Clear the temporary highlight before the test ends.
-    await tester.pump(const Duration(seconds: 2));
-  });
+        isTrue,
+      );
+      expect(find.text('Pinned message 10'), findsOneWidget);
+      await tester.tap(find.text('Pinned message 10'));
+      await tester.pumpAndSettle();
+      expect(chat.located, [20, 10]);
+      await tester.tap(find.byIcon(Icons.format_list_bulleted));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pinned message 10').last);
+      await tester.pumpAndSettle();
+      expect(chat.located, [20, 10, 10]);
+      expect(tester.takeException(), isNull);
+      // Clear the temporary highlight before the test ends.
+      await tester.pump(const Duration(seconds: 2));
+    },
+  );
 
-  testWidgets('pin bar updates and disappears after pins are removed',
-      (tester) async {
+  testWidgets('pin bar updates and disappears after pins are removed', (
+    tester,
+  ) async {
     final container = await pumpChat(tester);
     final groups = container.read(groupDirectoryProvider.notifier);
     groups.applyPinned(42, [_pin(5)]);

@@ -3,7 +3,7 @@ VoceChat 新版底座 / 旧版界面
 源码基础：haorwen/vocechat-client-flutter
 基线提交：fbfa4cf85a6306bfbe9c13b67cf0aab85f8cf5ab
 旧界面参考：imdingji/vocechat-android，ecb4562ca5f56329a0d3b1a75c56ea21e879c7ff
-版本：0.3.33-r1+3122（显示版本 0.3.33-r1，内部构建号 3122）
+版本：0.3.33-r6+3127（显示版本 0.3.33-r6，内部构建号 3127）
 Android applicationId：com.privoce.vocechatclient.legacyui
 名称：vocechat怀旧版
 
@@ -18,7 +18,7 @@ Avo、通知和存储等新增功能从旧式设置列表进入。保留新版�
 NDK 27.0.12077973，Gradle 8.14.3，AGP 8.11.1。
 
 1. flutter pub get
-2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33-r1 / 3122。
+2. 配置 android/local.properties 的 sdk.dir 和 flutter.sdk；版本为0.3.33-r6 / 3127。
 3. 配置 android/key.properties 的 storeFile / storePassword / keyAlias / keyPassword。
    本源码包不含签名私钥、密码或本机路径配置。继续升级已安装的交付包需要相同签名。
 4. flutter build apk --release --flavor standalone --target-platform android-arm64 --no-pub
