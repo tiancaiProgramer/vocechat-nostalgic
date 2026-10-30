@@ -3510,6 +3510,138 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'Keep separate'**
   String get livePhotoPairSeparate;
+
+  /// No description provided for @downloadInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get downloadInProgress;
+
+  /// No description provided for @downloadSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get downloadSaving;
+
+  /// No description provided for @downloadSavedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to {path}'**
+  String downloadSavedTo(String path);
+
+  /// No description provided for @appearanceFontSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Font size'**
+  String get appearanceFontSize;
+
+  /// No description provided for @appearanceFontSizeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag the slider to adjust text size throughout the app. Changes are saved automatically.'**
+  String get appearanceFontSizeDescription;
+
+  /// No description provided for @appearanceFontSizePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Find a comfortable size for reading and chatting.'**
+  String get appearanceFontSizePreview;
+
+  /// No description provided for @appearanceFontSizeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% (Default)'**
+  String appearanceFontSizeDefault(int percent);
+
+  /// No description provided for @appearanceFontSizeValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String appearanceFontSizeValue(int percent);
+
+  /// No description provided for @appearanceFontSizeReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get appearanceFontSizeReset;
+
+  /// No description provided for @appearanceFontSizeSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save font size. Please try again.'**
+  String get appearanceFontSizeSaveFailed;
+
+  /// No description provided for @aboutGithubProject.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub project'**
+  String get aboutGithubProject;
+
+  /// No description provided for @aboutCheckUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get aboutCheckUpdates;
+
+  /// No description provided for @aboutGithubUpdateSource.
+  ///
+  /// In en, this message translates to:
+  /// **'VoceChat Nostalgic · GitHub Releases'**
+  String get aboutGithubUpdateSource;
+
+  /// No description provided for @aboutNoRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'No published releases yet.'**
+  String get aboutNoRelease;
+
+  /// No description provided for @aboutUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Your version is up to date. GitHub release: {version}'**
+  String aboutUpToDate(String version);
+
+  /// No description provided for @aboutUpdateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check for updates. Check your network and try again.'**
+  String get aboutUpdateCheckFailed;
+
+  /// No description provided for @aboutViewRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'View on GitHub'**
+  String get aboutViewRelease;
+
+  /// No description provided for @appearanceFontFamily.
+  ///
+  /// In en, this message translates to:
+  /// **'Font'**
+  String get appearanceFontFamily;
+
+  /// No description provided for @appearanceFontFamilySystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow system font'**
+  String get appearanceFontFamilySystem;
+
+  /// No description provided for @appearanceFontFamilyBundled.
+  ///
+  /// In en, this message translates to:
+  /// **'App default font'**
+  String get appearanceFontFamilyBundled;
+
+  /// No description provided for @appearanceFontFamilySaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save the font. Please try again.'**
+  String get appearanceFontFamilySaveFailed;
+
+  /// No description provided for @appearanceSystemFontUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The phone’s font could not be read. Using the standard system font.'**
+  String get appearanceSystemFontUnavailable;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

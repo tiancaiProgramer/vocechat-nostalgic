@@ -1,3 +1,6 @@
+import 'core/theme/app_text_scale.dart';
+import 'core/theme/font_family_provider.dart';
+import 'core/theme/system_font_provider.dart';
 import 'features/voice/application/voice_controller.dart';
 import 'core/background/background_runtime.dart';
 import 'core/background/incoming_call_notifications.dart';
@@ -44,6 +47,8 @@ class VoceChatApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(goRouterProvider);
     final themeMode = ref.watch(themeModeNotifierProvider);
+    final useSystemFont = ref.watch(fontFamilyProvider) == AppFontFamily.system;
+    final systemFont = useSystemFont ? ref.watch(systemFontProvider) : null;
     final locale = ref.watch(localeNotifierProvider);
     // Mounts the app_links subscription for the app's lifetime (Android/iOS
     // vocechat:// custom scheme). keepAlive on the provider means this watch
@@ -65,8 +70,14 @@ class VoceChatApp extends ConsumerWidget {
     // only refresh on the next navigation/rebuild.
     return MaterialApp.router(
       title: 'vocechat怀旧版',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.light(
+          useSystemFont: useSystemFont,
+          systemFontFamily: systemFont?.family,
+          systemFontFallback: systemFont?.fallback ?? const []),
+      darkTheme: AppTheme.dark(
+          useSystemFont: useSystemFont,
+          systemFontFamily: systemFont?.family,
+          systemFontFallback: systemFont?.fallback ?? const []),
       themeMode: themeMode,
       locale: locale,
       localizationsDelegates: AppL10n.localizationsDelegates,
@@ -78,23 +89,26 @@ class VoceChatApp extends ConsumerWidget {
         // Key the subtree by brightness so every descendant rebuilds (and
         // re-reads AppTokens.*) the instant the resolved theme flips —
         // otherwise widgets that don't watch themeMode keep cached colors.
-        return GestureDetector(
-          // Tapping blank space anywhere dismisses the keyboard — mirrors
-          // native mobile behavior. deferToChild would only fire when a
-          // descendant already claims the hit, so opaque is required to
-          // catch taps on plain, non-interactive areas.
-          behavior: HitTestBehavior.opaque,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-          child: VoicePictureInPictureOverlay(
-            child: KeyedSubtree(
-              key: ValueKey(brightness),
-              child: TickerMode(
-                enabled: !ref.watch(androidBackgroundedProvider) ||
-                    ref.watch(voiceControllerProvider.select((s) => s != null)),
-                child: child ??
-                    AppRecoveryPage(
-                      onRetry: () => ref.invalidate(goRouterProvider),
-                    ),
+        return AppTextScale(
+          child: GestureDetector(
+            // Tapping blank space anywhere dismisses the keyboard — mirrors
+            // native mobile behavior. deferToChild would only fire when a
+            // descendant already claims the hit, so opaque is required to
+            // catch taps on plain, non-interactive areas.
+            behavior: HitTestBehavior.opaque,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: VoicePictureInPictureOverlay(
+              child: KeyedSubtree(
+                key: ValueKey(brightness),
+                child: TickerMode(
+                  enabled: !ref.watch(androidBackgroundedProvider) ||
+                      ref.watch(
+                          voiceControllerProvider.select((s) => s != null)),
+                  child: child ??
+                      AppRecoveryPage(
+                        onRetry: () => ref.invalidate(goRouterProvider),
+                      ),
+                ),
               ),
             ),
           ),

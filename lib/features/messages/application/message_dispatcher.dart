@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/network/sse_client.dart';
+import '../../../core/privacy/email_privacy_provider.dart';
 import '../../../core/utils/app_log.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../channels/application/conversation_providers.dart';
@@ -12,6 +13,7 @@ import '../../channels/application/muted_chats_provider.dart';
 import '../../channels/application/pinned_chats_provider.dart';
 import '../../channels/domain/pin_chat_models.dart';
 import '../../contacts/application/presence_provider.dart';
+import '../../contacts/application/contacts_provider.dart';
 import '../../contacts/application/user_directory_provider.dart';
 import '../data/message_cache.dart';
 import '../domain/message_models.dart';
@@ -38,10 +40,21 @@ part 'message_dispatcher.g.dart';
 /// screen being mounted.
 @Riverpod(keepAlive: true)
 class MessageDispatcher extends _$MessageDispatcher {
+  bool _initialConfig = true;
+  Future<void> _pendingPersistence = Future.value();
+  bool _persistenceFailed = false;
+
   @override
   void build() {
     ref.listen(sseEventsProvider, (_, next) {
       next.whenData((event) {
+        if (event is ChatEventConnectionOpened) {
+          _initialConfig = true;
+          _pendingPersistence = _pendingPersistence.then((_) {
+            _persistenceFailed = false;
+          });
+          return;
+        }
         if (event is ChatEventChat) {
           final msg = event.message;
           deliverBackgroundNotification(ref, msg);
@@ -56,28 +69,22 @@ class MessageDispatcher extends _$MessageDispatcher {
             return;
           }
 
-          // Persist EVERY incoming chat message to the cache the moment it
-          // arrives — not when the user opens the chat screen. This is what
-          // makes "open a chat for the first time and immediately see the
-          // latest messages" work: the cache is the single source of truth
-          // for [ChatController.build], so by the time the user navigates
-          // in, the freshest messages are already on disk.
-          //
-          // Schedule before touching conversations so a build() that races
-          // this microtask still observes the row.
-          //
-          // We also bump the SSE cursor here so a relaunch right after this
-          // call doesn't replay messages we've already durably stored.
-          final cacheAsync = ref.read(messageCacheProvider);
-          final cache = cacheAsync.valueOrNull;
+          final cache = ref.read(messageCacheProvider).valueOrNull;
           if (cache != null) {
-            // Fire-and-forget — appendOne handles its own errors.
-            // Use the peer-resolved target, not the raw server-perspective
-            // `msg.target` — for an incoming DM, `msg.target` is always
-            // ourselves, so caching under it would file the message into a
-            // "chat with self" row instead of the actual peer conversation.
-            cache.appendOne(_conversationTargetFor(msg), msg);
-            if (msg.mid > 0) cache.setCursor(msg.mid);
+            final target = _conversationTargetFor(msg);
+            // Preserve wire order and save the row/cursor atomically. After a
+            // disk failure, later messages must not acknowledge the missing row;
+            // the next connection will replay from the last safe cursor.
+            _pendingPersistence = _pendingPersistence.then((_) async {
+              try {
+                await cache.appendOne(target, msg,
+                    advanceCursor: !_persistenceFailed);
+              } catch (error) {
+                _persistenceFailed = true;
+                AppLog.w(LogTag.sse,
+                    () => 'SSE cache write deferred until replay: $error');
+              }
+            });
           }
 
           // Update the conversation list preview/timestamp.
@@ -99,6 +106,14 @@ class MessageDispatcher extends _$MessageDispatcher {
           return;
         }
         if (event is ChatEventServerConfigChanged) {
+          final changed = ref.read(emailPrivacyProvider.notifier).applyConfig(
+                event.data,
+                initial: _initialConfig,
+              );
+          _initialConfig = false;
+          if (changed && ref.exists(authControllerProvider)) {
+            unawaited(ref.read(authControllerProvider.notifier).refreshUser());
+          }
           ref.read(chatLayoutProvider.notifier).applyConfig(event.data);
           final flag = event.data['show_user_online_status'];
           if (flag is bool) {
@@ -107,6 +122,7 @@ class MessageDispatcher extends _$MessageDispatcher {
           return;
         }
         if (event is ChatEventUsersSnapshot) {
+          _applyUsers(event.users);
           unawaited(ref
               .read(userDirectoryProvider.notifier)
               .applySnapshot(event.users));
@@ -142,6 +158,7 @@ class MessageDispatcher extends _$MessageDispatcher {
                 event.type == 'avo_changed')) {
           final decoded = _decode(event.raw);
           if (decoded != null) {
+            _applyUsers([decoded], partial: true);
             unawaited(ref
                 .read(userDirectoryProvider.notifier)
                 .applyUserUpdate(decoded));
@@ -169,6 +186,12 @@ class MessageDispatcher extends _$MessageDispatcher {
             case 'users_log':
               final logs = _decode(event.raw)?['logs'];
               if (logs is List) {
+                _applyUsers(
+                    logs
+                        .whereType<Map>()
+                        .map((m) => Map<String, dynamic>.from(m))
+                        .toList(),
+                    partial: true);
                 unawaited(ref.read(userDirectoryProvider.notifier).applyLogs(
                       logs
                           .whereType<Map>()
@@ -201,6 +224,18 @@ class MessageDispatcher extends _$MessageDispatcher {
         }
       });
     });
+  }
+
+  void _applyUsers(List<Map<String, dynamic>> users, {bool partial = false}) {
+    if (ref.exists(authControllerProvider)) {
+      ref
+          .read(authControllerProvider.notifier)
+          .applyUsers(users, partial: partial);
+    }
+    // Update only known contacts; a snapshot also contains group members.
+    if (ref.exists(contactsProvider)) {
+      ref.read(contactsProvider.notifier).applyUsers(users, partial: partial);
+    }
   }
 
   /// Initial `user_settings` snapshot: replace the pinned-chats list with

@@ -1883,4 +1883,81 @@ class AppL10nKo extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => '다운로드 중…';
+
+  @override
+  String get downloadSaving => '저장 중…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return '$path에 저장됨';
+  }
+
+  @override
+  String get appearanceFontSize => '글자 크기';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      '슬라이더로 앱 전체의 글자 크기를 조절하세요. 변경 사항은 자동으로 저장됩니다.';
+
+  @override
+  String get appearanceFontSizePreview => '읽기와 채팅에 편안한 글자 크기를 선택하세요.';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent% (기본값)';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => '기본값으로 재설정';
+
+  @override
+  String get appearanceFontSizeSaveFailed => '글자 크기를 저장하지 못했습니다. 다시 시도해 주세요.';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => '글꼴';
+
+  @override
+  String get appearanceFontFamilySystem => '시스템 글꼴 사용';
+
+  @override
+  String get appearanceFontFamilyBundled => '앱 기본 글꼴';
+
+  @override
+  String get appearanceFontFamilySaveFailed => '글꼴을 저장하지 못했습니다. 다시 시도해 주세요.';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      '휴대전화 글꼴을 읽을 수 없어 시스템 기본 글꼴을 사용합니다.';
 }

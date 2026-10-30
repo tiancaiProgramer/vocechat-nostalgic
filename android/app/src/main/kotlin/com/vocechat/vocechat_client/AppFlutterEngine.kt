@@ -24,12 +24,14 @@ internal object AppFlutterEngine {
         val notifications = BackgroundMessageBridge(
             context.applicationContext, engine.dartExecutor.binaryMessenger,
         )
+        val systemFonts = SystemFontBridge(context.applicationContext, engine.dartExecutor.binaryMessenger)
         val incomingShares = IncomingShareBridge(context.applicationContext, engine.dartExecutor.binaryMessenger)
 
         val localTransfer = LocalTransferBridge(context.applicationContext, engine.dartExecutor.binaryMessenger)
 
         fun dispose() {
             Log.i(TAG, "destroy engine=${System.identityHashCode(engine)}")
+            systemFonts.dispose()
             localTransfer.dispose()
             notifications.dispose()
             incomingShares.dispose()

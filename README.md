@@ -2,15 +2,24 @@
 
 新版 VoceChat 功能底座，保留旧版 Android 页面风格。
 
-当前版本：**0.3.33-r6**（内部构建号 3127，预发布）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
+当前版本：**0.3.35-r11**（内部构建号 3132）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
 
 后续对外版本使用 `-rN` 依次递增，内部构建号继续递增；见[版本命名规则](docs/versioning.md)。
 
 ## 安装
 
-从 [r6预发布](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.33-r6) 下载 ARM64 APK；[发布说明](docs/releases/0.3.33-r6.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
+从 [r11发行版](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.35-r11) 下载 ARM64 APK；[发布说明](docs/releases/0.3.35-r11.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
 
 此应用可与原版共存；升级已安装的怀旧版会保留应用数据。设备会话已被服务器拒绝时，需要在应用内重新登录一次。
+
+## 0.3.35-r11 更新（2026-10-30）
+
+- 新增系统/应用默认字体切换及85%～130%字号调节，系统字体改变后返回应用可自动刷新。
+- 关于页面新增官网、项目和手动GitHub更新入口。
+- 选择性同步官方0.3.35的邮箱隐藏、无邮箱UID显示、机器人分组和新群组会话更新；聊天昵称与正文用不同颜色。
+- 修复断线消息重放游标及网络切换重连，补充文件下载进度、保存状态和完成位置。
+
+完整Flutter回归809项通过、5项条件用例跳过，另2项Android原生测试通过。小米Android 16已验证实际系统字体更换，原数据保留；其他厂商字体、可用移动网络切换等未验证范围见[r11说明](docs/releases/0.3.35-r11.md)。此版本包含此前未单独发布的r7～r10改动。
 
 ## 0.3.33-r6 更新（2026-10-30，预发布）
 

@@ -1,3 +1,5 @@
+import '../../app_update/data/nostalgic_github_update.dart';
+import '../../app_update/presentation/nostalgic_update_tile.dart';
 import '../../../legacy_ui/legacy_chrome.dart';
 import '../../../core/background/background_preferences.dart';
 import 'background_settings_card.dart';
@@ -6,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/i18n/locale_provider.dart';
 import '../../../core/network/dio_client.dart';
@@ -26,6 +27,8 @@ import '../application/app_info_provider.dart';
 import '../application/server_version_provider.dart';
 import '../data/user_api.dart';
 import 'avo_settings_screen.dart';
+import 'font_size_settings_card.dart';
+import 'font_family_settings_card.dart';
 
 void _showFeatureUnavailable(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
@@ -1082,7 +1085,8 @@ class _NotificationsPane extends ConsumerWidget {
             title: l.notificationsMentionsOnly,
             subtitle: l.notificationsMentionsOnlySubtitle,
             value: mentionOnlyMode,
-            onChanged: notificationsEnabled && !usesFcm ? onMentionOnlyChanged : null,
+            onChanged:
+                notificationsEnabled && !usesFcm ? onMentionOnlyChanged : null,
           ),
           const BackgroundSettingsCard(),
         ],
@@ -1152,7 +1156,7 @@ class _CardDivider extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _AppearancePane — theme selector + language selector.
+// _AppearancePane — theme, font size and language selectors.
 // ---------------------------------------------------------------------------
 
 class _AppearancePane extends StatelessWidget {
@@ -1211,6 +1215,10 @@ class _AppearancePane extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        const FontFamilySettingsCard(),
+        const SizedBox(height: 16),
+        const FontSizeSettingsCard(),
         const SizedBox(height: 16),
         _Card(
           child: Column(
@@ -1472,6 +1480,12 @@ class _AboutPane extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('vocechat怀旧版',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTokens.gray700)),
+          const SizedBox(height: 12),
           _LabeledRow(label: l.aboutAppVersion, value: version),
           _LabeledRow(
             label: l.aboutServerVersion,
@@ -1488,17 +1502,26 @@ class _AboutPane extends ConsumerWidget {
             trailing: _SecondaryButton(
               label: l.actionOpen,
               icon: Icons.open_in_new_outlined,
-              onTap: () => launchUrl(Uri.parse('https://voce.chat')),
+              onTap: () => openAboutLink(context, ref, nostalgicWebsiteUrl),
             ),
           ),
+          _LabeledRow(
+            label: l.aboutGithubProject,
+            value: 'vocechat-nostalgic',
+            trailing: _SecondaryButton(
+              label: l.actionOpen,
+              icon: Icons.open_in_new_outlined,
+              onTap: () => openAboutLink(context, ref, nostalgicProjectUrl),
+            ),
+          ),
+          const NostalgicUpdateTile(),
           _LabeledRow(
             label: l.aboutReportBug,
             value: l.aboutReportBugSubtitle,
             trailing: _SecondaryButton(
               label: l.actionContact,
-              onTap: () => launchUrl(
-                Uri.parse('https://github.com/Privoce/vocechat-web/issues'),
-              ),
+              onTap: () => openAboutLink(context, ref,
+                  Uri.https('github.com', '/$nostalgicRepository/issues')),
             ),
           ),
         ],

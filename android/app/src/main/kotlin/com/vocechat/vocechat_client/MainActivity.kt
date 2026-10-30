@@ -79,6 +79,7 @@ class MainActivity : AgoraPIPFlutterActivity() {
     private var secureStorageCommit: SecureStorageCommit? = null
     private var externalLinks: ExternalLinkLauncher? = null
     private var incomingShares: IncomingShareBridge? = null
+    private var systemFonts: SystemFontBridge? = null
 
     private fun acceptShare(intent: Intent?) {
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) AppFlutterEngine.shareIntent(intent)
@@ -93,6 +94,7 @@ class MainActivity : AgoraPIPFlutterActivity() {
         if (BuildConfig.DIRECT_DISTRIBUTION_FEATURES) {
             updater = AndroidUpdateInstaller(this, flutterEngine.dartExecutor.binaryMessenger)
         } else {
+            systemFonts = SystemFontBridge(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
             incomingShares = IncomingShareBridge(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
             // Play owns its engine here. Standalone registers the same bridge
             // in AppFlutterEngine.Resources for the retained engine's lifetime.
@@ -102,6 +104,8 @@ class MainActivity : AgoraPIPFlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        systemFonts?.dispose()
+        systemFonts = null
         incomingShares?.dispose()
         incomingShares = null
         externalLinks?.dispose()

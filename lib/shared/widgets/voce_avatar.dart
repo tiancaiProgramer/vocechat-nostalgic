@@ -51,7 +51,6 @@ class VoceAvatar extends StatelessWidget {
       child: Text(
         letter,
         style: TextStyle(
-          fontFamily: 'Inter',
           color: const Color(0xFF52525B),
           fontSize: letter.characters.length > 3 ? size / 3.5 : size * .4,
           fontWeight: FontWeight.w600,

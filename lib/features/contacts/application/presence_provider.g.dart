@@ -6,7 +6,7 @@ part of 'presence_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$presenceHash() => r'3316b956915192f5f0a5f48d02a8b0404b81b800';
+String _$presenceHash() => r'237a2e15d72573a90bd07220353fdda2c03ebaa8';
 
 /// Per-user online state.
 ///

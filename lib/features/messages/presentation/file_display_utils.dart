@@ -112,12 +112,16 @@ String _safeDownloadFilename(String filename) {
 Future<Uint8List> _downloadBytes(
   ProviderContainer container,
   String url,
-  File? localFile,
-) async {
+  File? localFile, {
+  ProgressCallback? onReceiveProgress,
+}) async {
   if (localFile != null) {
     try {
       final data = await localFile.readAsBytes();
-      if (data.isNotEmpty) return data;
+      if (data.isNotEmpty) {
+        onReceiveProgress?.call(data.length, data.length);
+        return data;
+      }
     } on FileSystemException {
       // An LRU eviction racing this read is a normal network-cache miss.
     }
@@ -127,6 +131,7 @@ Future<Uint8List> _downloadBytes(
   final response = await dio.get<List<int>>(
     url,
     options: Options(responseType: ResponseType.bytes),
+    onReceiveProgress: onReceiveProgress,
   );
   final bytes = response.data;
   if (bytes == null || bytes.isEmpty) throw Exception('empty response');
@@ -137,18 +142,27 @@ Future<void> _downloadToFile(
   ProviderContainer container,
   String url,
   File target,
-  File? localFile,
-) async {
+  File? localFile, {
+  ProgressCallback? onReceiveProgress,
+}) async {
   if (localFile != null) {
     try {
       await localFile.copy(target.path);
-      if (await target.length() > 0) return;
+      final length = await target.length();
+      if (length > 0) {
+        onReceiveProgress?.call(length, length);
+        return;
+      }
     } on FileSystemException {
       // Fall through when the cache is evicted during the copy.
     }
   }
 
-  await container.read(dioProvider).download(url, target.path);
+  await container.read(dioProvider).download(
+        url,
+        target.path,
+        onReceiveProgress: onReceiveProgress,
+      );
   if (!await target.exists() || await target.length() == 0) {
     throw Exception('empty response');
   }
@@ -159,13 +173,17 @@ Future<void> _withStagedDownload(
   String url,
   String filename,
   File? localFile,
-  Future<void> Function(File file) save,
-) async {
+  Future<void> Function(File file) save, {
+  ProgressCallback? onReceiveProgress,
+  VoidCallback? onSaving,
+}) async {
   final tempDir = await getTemporaryDirectory();
   final stagingDir = await tempDir.createTemp('voce_download_');
   try {
     final tempFile = File('${stagingDir.path}/$filename');
-    await _downloadToFile(container, url, tempFile, localFile);
+    await _downloadToFile(container, url, tempFile, localFile,
+        onReceiveProgress: onReceiveProgress);
+    onSaving?.call();
     await save(tempFile);
   } finally {
     try {
@@ -188,8 +206,10 @@ Future<void> _saveToAndroidSharedStorage(
   String url,
   String filename,
   DownloadFileKind kind,
-  File? localFile,
-) async {
+  File? localFile, {
+  ProgressCallback? onReceiveProgress,
+  VoidCallback? onSaving,
+}) async {
   await _ensureMediaStoreReady();
   final (dirType, dirName) = switch (kind) {
     DownloadFileKind.image => (DirType.photo, DirName.dcim),
@@ -222,6 +242,8 @@ Future<void> _saveToAndroidSharedStorage(
         throw Exception('MediaStore save returned null');
       }
     },
+    onReceiveProgress: onReceiveProgress,
+    onSaving: onSaving,
   );
 }
 
@@ -230,8 +252,10 @@ Future<void> _saveToIosPhotoLibrary(
   String url,
   String filename,
   DownloadFileKind kind,
-  File? localFile,
-) async {
+  File? localFile, {
+  ProgressCallback? onReceiveProgress,
+  VoidCallback? onSaving,
+}) async {
   final permission = await PhotoManager.requestPermissionExtend(
     requestOption: const PermissionRequestOption(
       iosAccessLevel: IosAccessLevel.addOnly,
@@ -259,6 +283,8 @@ Future<void> _saveToIosPhotoLibrary(
           throw StateError('Non-media files cannot be saved to Photos');
       }
     },
+    onReceiveProgress: onReceiveProgress,
+    onSaving: onSaving,
   );
 }
 
@@ -275,7 +301,7 @@ Future<void> _saveToIosPhotoLibrary(
 /// - iOS other files and desktop: the native save-file dialog.
 ///
 /// Shows a snackbar on success or failure.
-Future<void> downloadAndSave(
+Future<bool> downloadAndSave(
   BuildContext context,
   ProviderContainer container,
   String url,
@@ -283,6 +309,8 @@ Future<void> downloadAndSave(
   String? contentType,
   String? cacheKey,
   File? cachedFile,
+  ProgressCallback? onReceiveProgress,
+  VoidCallback? onSaving,
 }) async {
   final l = AppL10n.of(context);
   try {
@@ -298,6 +326,8 @@ Future<void> downloadAndSave(
         safeFilename,
         kind,
         localFile,
+        onReceiveProgress: onReceiveProgress,
+        onSaving: onSaving,
       );
     } else if (!kIsWeb && Platform.isIOS && kind != DownloadFileKind.other) {
       await _saveToIosPhotoLibrary(
@@ -306,30 +336,44 @@ Future<void> downloadAndSave(
         safeFilename,
         kind,
         localFile,
+        onReceiveProgress: onReceiveProgress,
+        onSaving: onSaving,
       );
     } else if (kIsWeb || Platform.isIOS) {
-      final data = await _downloadBytes(container, url, localFile);
+      final data = await _downloadBytes(container, url, localFile,
+          onReceiveProgress: onReceiveProgress);
+      onSaving?.call();
       final path = await FilePicker.platform.saveFile(
         fileName: safeFilename,
         bytes: data,
       );
-      if (path == null && !kIsWeb) return;
+      if (path == null && !kIsWeb) return false;
     } else {
       final path = await FilePicker.platform.saveFile(fileName: safeFilename);
-      if (path == null) return;
-      await _downloadToFile(container, url, File(path), localFile);
+      if (path == null) return false;
+      await _downloadToFile(container, url, File(path), localFile,
+          onReceiveProgress: onReceiveProgress);
+      onSaving?.call();
     }
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l.downloadSaved)));
+      final message = !kIsWeb && Platform.isAndroid
+          ? l.downloadSavedTo(
+              '${kind == DownloadFileKind.other ? 'Download' : 'DCIM'}/$_kDownloadAppFolder/$safeFilename')
+          : l.downloadSaved;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+      );
     }
+    return true;
   } catch (e, st) {
-    AppLog.e(LogTag.general, () => 'download failed url=$url',
-        error: e, stackTrace: st);
+    AppLog.e(LogTag.general, () => 'download failed', error: e, stackTrace: st);
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l.downloadFailed)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is DioException && e.response?.statusCode != null
+              ? '${l.downloadFailed} (HTTP ${e.response!.statusCode})'
+              : l.downloadFailed)));
     }
+    return false;
   }
 }

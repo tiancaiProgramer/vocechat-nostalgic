@@ -28,7 +28,7 @@ Map<String, dynamic> _$$ServerConfigImplToJson(_$ServerConfigImpl instance) =>
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverStoreHash() => r'03ccf7546e4d4ffd384a05a22342765351b20dbd';
+String _$serverStoreHash() => r'ae667cf38af37c5ea53cce8a7cf503e0a5885455';
 
 /// See also [ServerStore].
 @ProviderFor(ServerStore)

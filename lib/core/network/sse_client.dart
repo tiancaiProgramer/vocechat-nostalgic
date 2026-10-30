@@ -226,6 +226,7 @@ class VoceSseClient {
     socket?.pingInterval = const Duration(seconds: 30);
     _socket = socket;
     _httpClient = http;
+    controller.add(const ChatEvent.connectionOpened());
 
     bool firstFrame = true;
     bool receivedEvent = false;
@@ -393,29 +394,30 @@ Stream<ChatEvent> sseEvents(Ref ref) async* {
     disposed = true;
     activeClient?.dispose();
   });
-  // Only stream when authenticated. Watching authController makes the
-  // provider rebuild on login/logout.
-  final authState = await ref.watch(authControllerProvider.future);
-  if (disposed) return;
-  if (authState is! AuthStateAuthenticated) {
-    return;
-  }
-
-  // Watching accountStore makes the provider rebuild on account switch (same
-  // or different server); watching serverStore makes it rebuild on server
-  // switch too, since that's what resolves currentServer's baseUrl.
-  final accountState = await ref.watch(accountStoreProvider.future);
-  if (disposed) return;
-  final accountId = accountState.currentAccountId;
-  if (accountId == null) return;
-  final serverState = await ref.watch(serverStoreProvider.future);
-  if (disposed) return;
-  final account =
-      accountState.accounts.where((a) => a.accountId == accountId).firstOrNull;
-  if (account == null) return;
-  final currentServer =
-      serverState.servers.where((s) => s.id == account.serverId).firstOrNull;
-  if (currentServer == null) return;
+  // Profile/privacy changes must not reopen the connection. Keep the
+  // transport scoped to the account's server even during account switching.
+  final uid = ref.watch(authControllerProvider.select((value) {
+    final auth = value.valueOrNull;
+    return auth is AuthStateAuthenticated ? auth.user.uid : null;
+  }));
+  if (uid == null) return;
+  final scope = ref.watch(accountStoreProvider.select((value) {
+    final accounts = value.valueOrNull;
+    final account = accounts?.accounts
+        .where((a) => a.accountId == accounts.currentAccountId)
+        .firstOrNull;
+    return account == null
+        ? null
+        : (id: account.accountId, serverId: account.serverId);
+  }));
+  if (scope == null) return;
+  final accountId = scope.id;
+  final baseUrl = ref.watch(serverStoreProvider.select((value) => value
+      .valueOrNull?.servers
+      .where((s) => s.id == scope.serverId)
+      .firstOrNull
+      ?.baseUrl));
+  if (baseUrl == null) return;
 
   // Token. We READ rather than WATCH here because the token store doesn't
   // expose a stream; instead we manually invalidate this provider when a
@@ -459,7 +461,7 @@ Stream<ChatEvent> sseEvents(Ref ref) async* {
   }
 
   final client = VoceSseClient(
-    baseUrl: currentServer.baseUrl,
+    baseUrl: baseUrl,
     apiKey: tokens.accessToken,
     initialAfterMid: cursor,
     refreshToken: tokenRefreshCallback,

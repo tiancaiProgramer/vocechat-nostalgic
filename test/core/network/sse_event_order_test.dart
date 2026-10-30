@@ -30,7 +30,10 @@ void main() {
         return parseSseEvent(type, raw);
       },
     );
-    final sub = client.events().listen((event) {
+    final sub = client
+        .events()
+        .where((event) => event is! ChatEventConnectionOpened)
+        .listen((event) {
       received.add(event as ChatEventUnknown);
       if (received.length == 2) done.complete();
     });

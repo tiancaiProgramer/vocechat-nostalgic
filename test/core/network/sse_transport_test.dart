@@ -26,7 +26,11 @@ void main() {
         baseUrl: 'http://127.0.0.1:${server.port}/',
         apiKey: 'fake-key',
         preferInlineParsing: () => true);
-    final event = await c.events().first.timeout(const Duration(seconds: 5));
+    final event = await c
+        .events()
+        .where((event) => event is! ChatEventConnectionOpened)
+        .first
+        .timeout(const Duration(seconds: 5));
     expect((event as ChatEventUnknown).type, 'users_state');
     await socket?.close();
     await server.close(force: true);
@@ -64,8 +68,12 @@ void main() {
           apiKey: 'fake-key',
           initialAfterMid: 99,
           preferInlineParsing: () => true);
-      final got =
-          await c.events().take(2).toList().timeout(const Duration(seconds: 5));
+      final got = await c
+          .events()
+          .where((event) => event is! ChatEventConnectionOpened)
+          .take(2)
+          .toList()
+          .timeout(const Duration(seconds: 5));
       expect(paths, ['/api/user/events_ws', '/api/user/events']);
       expect(got.cast<ChatEventUnknown>().map((e) => e.type),
           ['users_state', 'users_state_changed']);
@@ -88,7 +96,10 @@ void main() {
     final client = VoceSseClient(
         baseUrl: 'http://127.0.0.1:${server.port}', apiKey: 'fake-key');
     final finished = Completer<void>();
-    client.events().listen((_) {}, onDone: () => finished.complete());
+    client
+        .events()
+        .where((event) => event is! ChatEventConnectionOpened)
+        .listen((_) {}, onDone: () => finished.complete());
     await connected.future.timeout(const Duration(seconds: 3));
     client.dispose();
     await Future.wait([finished.future, disconnected.future])
@@ -110,7 +121,10 @@ void main() {
         apiKey: 'fake-key',
         refreshToken: () => renewal.future);
     final finished = Completer<void>();
-    client.events().listen((_) {}, onDone: () => finished.complete());
+    client
+        .events()
+        .where((event) => event is! ChatEventConnectionOpened)
+        .listen((_) {}, onDone: () => finished.complete());
     client.dispose();
     renewal.complete('fake-refreshed-key');
     await finished.future.timeout(const Duration(seconds: 3));
@@ -144,7 +158,10 @@ void main() {
       client.dispose();
       await server.close(force: true);
     });
-    client.events().listen((_) {
+    client
+        .events()
+        .where((event) => event is! ChatEventConnectionOpened)
+        .listen((_) {
       if (!first.isCompleted) first.complete();
     });
     final socket = await upgraded.future.timeout(const Duration(seconds: 3));

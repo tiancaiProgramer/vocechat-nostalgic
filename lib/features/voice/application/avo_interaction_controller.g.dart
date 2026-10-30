@@ -40,15 +40,21 @@ class AvoInteractionForUidFamily extends Family<RemoteAvoInteraction?> {
   const AvoInteractionForUidFamily();
 
   /// See also [avoInteractionForUid].
-  AvoInteractionForUidProvider call(int uid) {
-    return AvoInteractionForUidProvider(uid);
+  AvoInteractionForUidProvider call(
+    int uid,
+  ) {
+    return AvoInteractionForUidProvider(
+      uid,
+    );
   }
 
   @override
   AvoInteractionForUidProvider getProviderOverride(
     covariant AvoInteractionForUidProvider provider,
   ) {
-    return call(provider.uid);
+    return call(
+      provider.uid,
+    );
   }
 
   static const Iterable<ProviderOrFamily>? _dependencies = null;
@@ -70,9 +76,13 @@ class AvoInteractionForUidFamily extends Family<RemoteAvoInteraction?> {
 class AvoInteractionForUidProvider
     extends AutoDisposeProvider<RemoteAvoInteraction?> {
   /// See also [avoInteractionForUid].
-  AvoInteractionForUidProvider(int uid)
-      : this._internal(
-          (ref) => avoInteractionForUid(ref as AvoInteractionForUidRef, uid),
+  AvoInteractionForUidProvider(
+    int uid,
+  ) : this._internal(
+          (ref) => avoInteractionForUid(
+            ref as AvoInteractionForUidRef,
+            uid,
+          ),
           from: avoInteractionForUidProvider,
           name: r'avoInteractionForUidProvider',
           debugGetCreateSourceHash:
@@ -151,7 +161,7 @@ class _AvoInteractionForUidProviderElement
 }
 
 String _$avoInteractionControllerHash() =>
-    r'e80fbb217195c335e0a909efadf5ce18cc678fa5';
+    r'bcd58fbc8dca28d1c3af0053b7d90cfc7f7177e9';
 
 /// See also [AvoInteractionController].
 @ProviderFor(AvoInteractionController)

@@ -12,8 +12,7 @@ part of 'voice_models.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
-);
+    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
 
 /// @nodoc
 mixin _$VoicingInfo {
@@ -38,21 +37,19 @@ mixin _$VoicingInfo {
 /// @nodoc
 abstract class $VoicingInfoCopyWith<$Res> {
   factory $VoicingInfoCopyWith(
-    VoicingInfo value,
-    $Res Function(VoicingInfo) then,
-  ) = _$VoicingInfoCopyWithImpl<$Res, VoicingInfo>;
+          VoicingInfo value, $Res Function(VoicingInfo) then) =
+      _$VoicingInfoCopyWithImpl<$Res, VoicingInfo>;
   @useResult
-  $Res call({
-    MessageTarget context,
-    bool joining,
-    VoiceConnectionState? connectionState,
-    int? downlinkNetworkQuality,
-    bool muted,
-    bool deafen,
-    bool video,
-    bool shareScreen,
-    int speakingVolume,
-  });
+  $Res call(
+      {MessageTarget context,
+      bool joining,
+      VoiceConnectionState? connectionState,
+      int? downlinkNetworkQuality,
+      bool muted,
+      bool deafen,
+      bool video,
+      bool shareScreen,
+      int speakingVolume});
 
   $MessageTargetCopyWith<$Res> get context;
 }
@@ -82,46 +79,44 @@ class _$VoicingInfoCopyWithImpl<$Res, $Val extends VoicingInfo>
     Object? shareScreen = null,
     Object? speakingVolume = null,
   }) {
-    return _then(
-      _value.copyWith(
-        context: null == context
-            ? _value.context
-            : context // ignore: cast_nullable_to_non_nullable
-                as MessageTarget,
-        joining: null == joining
-            ? _value.joining
-            : joining // ignore: cast_nullable_to_non_nullable
-                as bool,
-        connectionState: freezed == connectionState
-            ? _value.connectionState
-            : connectionState // ignore: cast_nullable_to_non_nullable
-                as VoiceConnectionState?,
-        downlinkNetworkQuality: freezed == downlinkNetworkQuality
-            ? _value.downlinkNetworkQuality
-            : downlinkNetworkQuality // ignore: cast_nullable_to_non_nullable
-                as int?,
-        muted: null == muted
-            ? _value.muted
-            : muted // ignore: cast_nullable_to_non_nullable
-                as bool,
-        deafen: null == deafen
-            ? _value.deafen
-            : deafen // ignore: cast_nullable_to_non_nullable
-                as bool,
-        video: null == video
-            ? _value.video
-            : video // ignore: cast_nullable_to_non_nullable
-                as bool,
-        shareScreen: null == shareScreen
-            ? _value.shareScreen
-            : shareScreen // ignore: cast_nullable_to_non_nullable
-                as bool,
-        speakingVolume: null == speakingVolume
-            ? _value.speakingVolume
-            : speakingVolume // ignore: cast_nullable_to_non_nullable
-                as int,
-      ) as $Val,
-    );
+    return _then(_value.copyWith(
+      context: null == context
+          ? _value.context
+          : context // ignore: cast_nullable_to_non_nullable
+              as MessageTarget,
+      joining: null == joining
+          ? _value.joining
+          : joining // ignore: cast_nullable_to_non_nullable
+              as bool,
+      connectionState: freezed == connectionState
+          ? _value.connectionState
+          : connectionState // ignore: cast_nullable_to_non_nullable
+              as VoiceConnectionState?,
+      downlinkNetworkQuality: freezed == downlinkNetworkQuality
+          ? _value.downlinkNetworkQuality
+          : downlinkNetworkQuality // ignore: cast_nullable_to_non_nullable
+              as int?,
+      muted: null == muted
+          ? _value.muted
+          : muted // ignore: cast_nullable_to_non_nullable
+              as bool,
+      deafen: null == deafen
+          ? _value.deafen
+          : deafen // ignore: cast_nullable_to_non_nullable
+              as bool,
+      video: null == video
+          ? _value.video
+          : video // ignore: cast_nullable_to_non_nullable
+              as bool,
+      shareScreen: null == shareScreen
+          ? _value.shareScreen
+          : shareScreen // ignore: cast_nullable_to_non_nullable
+              as bool,
+      speakingVolume: null == speakingVolume
+          ? _value.speakingVolume
+          : speakingVolume // ignore: cast_nullable_to_non_nullable
+              as int,
+    ) as $Val);
   }
 
   /// Create a copy of VoicingInfo
@@ -139,22 +134,20 @@ class _$VoicingInfoCopyWithImpl<$Res, $Val extends VoicingInfo>
 abstract class _$$VoicingInfoImplCopyWith<$Res>
     implements $VoicingInfoCopyWith<$Res> {
   factory _$$VoicingInfoImplCopyWith(
-    _$VoicingInfoImpl value,
-    $Res Function(_$VoicingInfoImpl) then,
-  ) = __$$VoicingInfoImplCopyWithImpl<$Res>;
+          _$VoicingInfoImpl value, $Res Function(_$VoicingInfoImpl) then) =
+      __$$VoicingInfoImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({
-    MessageTarget context,
-    bool joining,
-    VoiceConnectionState? connectionState,
-    int? downlinkNetworkQuality,
-    bool muted,
-    bool deafen,
-    bool video,
-    bool shareScreen,
-    int speakingVolume,
-  });
+  $Res call(
+      {MessageTarget context,
+      bool joining,
+      VoiceConnectionState? connectionState,
+      int? downlinkNetworkQuality,
+      bool muted,
+      bool deafen,
+      bool video,
+      bool shareScreen,
+      int speakingVolume});
 
   @override
   $MessageTargetCopyWith<$Res> get context;
@@ -165,9 +158,8 @@ class __$$VoicingInfoImplCopyWithImpl<$Res>
     extends _$VoicingInfoCopyWithImpl<$Res, _$VoicingInfoImpl>
     implements _$$VoicingInfoImplCopyWith<$Res> {
   __$$VoicingInfoImplCopyWithImpl(
-    _$VoicingInfoImpl _value,
-    $Res Function(_$VoicingInfoImpl) _then,
-  ) : super(_value, _then);
+      _$VoicingInfoImpl _value, $Res Function(_$VoicingInfoImpl) _then)
+      : super(_value, _then);
 
   /// Create a copy of VoicingInfo
   /// with the given fields replaced by the non-null parameter values.
@@ -184,63 +176,60 @@ class __$$VoicingInfoImplCopyWithImpl<$Res>
     Object? shareScreen = null,
     Object? speakingVolume = null,
   }) {
-    return _then(
-      _$VoicingInfoImpl(
-        context: null == context
-            ? _value.context
-            : context // ignore: cast_nullable_to_non_nullable
-                as MessageTarget,
-        joining: null == joining
-            ? _value.joining
-            : joining // ignore: cast_nullable_to_non_nullable
-                as bool,
-        connectionState: freezed == connectionState
-            ? _value.connectionState
-            : connectionState // ignore: cast_nullable_to_non_nullable
-                as VoiceConnectionState?,
-        downlinkNetworkQuality: freezed == downlinkNetworkQuality
-            ? _value.downlinkNetworkQuality
-            : downlinkNetworkQuality // ignore: cast_nullable_to_non_nullable
-                as int?,
-        muted: null == muted
-            ? _value.muted
-            : muted // ignore: cast_nullable_to_non_nullable
-                as bool,
-        deafen: null == deafen
-            ? _value.deafen
-            : deafen // ignore: cast_nullable_to_non_nullable
-                as bool,
-        video: null == video
-            ? _value.video
-            : video // ignore: cast_nullable_to_non_nullable
-                as bool,
-        shareScreen: null == shareScreen
-            ? _value.shareScreen
-            : shareScreen // ignore: cast_nullable_to_non_nullable
-                as bool,
-        speakingVolume: null == speakingVolume
-            ? _value.speakingVolume
-            : speakingVolume // ignore: cast_nullable_to_non_nullable
-                as int,
-      ),
-    );
+    return _then(_$VoicingInfoImpl(
+      context: null == context
+          ? _value.context
+          : context // ignore: cast_nullable_to_non_nullable
+              as MessageTarget,
+      joining: null == joining
+          ? _value.joining
+          : joining // ignore: cast_nullable_to_non_nullable
+              as bool,
+      connectionState: freezed == connectionState
+          ? _value.connectionState
+          : connectionState // ignore: cast_nullable_to_non_nullable
+              as VoiceConnectionState?,
+      downlinkNetworkQuality: freezed == downlinkNetworkQuality
+          ? _value.downlinkNetworkQuality
+          : downlinkNetworkQuality // ignore: cast_nullable_to_non_nullable
+              as int?,
+      muted: null == muted
+          ? _value.muted
+          : muted // ignore: cast_nullable_to_non_nullable
+              as bool,
+      deafen: null == deafen
+          ? _value.deafen
+          : deafen // ignore: cast_nullable_to_non_nullable
+              as bool,
+      video: null == video
+          ? _value.video
+          : video // ignore: cast_nullable_to_non_nullable
+              as bool,
+      shareScreen: null == shareScreen
+          ? _value.shareScreen
+          : shareScreen // ignore: cast_nullable_to_non_nullable
+              as bool,
+      speakingVolume: null == speakingVolume
+          ? _value.speakingVolume
+          : speakingVolume // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
   }
 }
 
 /// @nodoc
 
 class _$VoicingInfoImpl implements _VoicingInfo {
-  const _$VoicingInfoImpl({
-    required this.context,
-    this.joining = false,
-    this.connectionState,
-    this.downlinkNetworkQuality,
-    this.muted = false,
-    this.deafen = false,
-    this.video = false,
-    this.shareScreen = false,
-    this.speakingVolume = 0,
-  });
+  const _$VoicingInfoImpl(
+      {required this.context,
+      this.joining = false,
+      this.connectionState,
+      this.downlinkNetworkQuality,
+      this.muted = false,
+      this.deafen = false,
+      this.video = false,
+      this.shareScreen = false,
+      this.speakingVolume = 0});
 
   @override
   final MessageTarget context;
@@ -294,17 +283,16 @@ class _$VoicingInfoImpl implements _VoicingInfo {
 
   @override
   int get hashCode => Object.hash(
-        runtimeType,
-        context,
-        joining,
-        connectionState,
-        downlinkNetworkQuality,
-        muted,
-        deafen,
-        video,
-        shareScreen,
-        speakingVolume,
-      );
+      runtimeType,
+      context,
+      joining,
+      connectionState,
+      downlinkNetworkQuality,
+      muted,
+      deafen,
+      video,
+      shareScreen,
+      speakingVolume);
 
   /// Create a copy of VoicingInfo
   /// with the given fields replaced by the non-null parameter values.
@@ -316,17 +304,16 @@ class _$VoicingInfoImpl implements _VoicingInfo {
 }
 
 abstract class _VoicingInfo implements VoicingInfo {
-  const factory _VoicingInfo({
-    required final MessageTarget context,
-    final bool joining,
-    final VoiceConnectionState? connectionState,
-    final int? downlinkNetworkQuality,
-    final bool muted,
-    final bool deafen,
-    final bool video,
-    final bool shareScreen,
-    final int speakingVolume,
-  }) = _$VoicingInfoImpl;
+  const factory _VoicingInfo(
+      {required final MessageTarget context,
+      final bool joining,
+      final VoiceConnectionState? connectionState,
+      final int? downlinkNetworkQuality,
+      final bool muted,
+      final bool deafen,
+      final bool video,
+      final bool shareScreen,
+      final int speakingVolume}) = _$VoicingInfoImpl;
 
   @override
   MessageTarget get context;
@@ -372,9 +359,8 @@ mixin _$VoicingMemberInfo {
 /// @nodoc
 abstract class $VoicingMemberInfoCopyWith<$Res> {
   factory $VoicingMemberInfoCopyWith(
-    VoicingMemberInfo value,
-    $Res Function(VoicingMemberInfo) then,
-  ) = _$VoicingMemberInfoCopyWithImpl<$Res, VoicingMemberInfo>;
+          VoicingMemberInfo value, $Res Function(VoicingMemberInfo) then) =
+      _$VoicingMemberInfoCopyWithImpl<$Res, VoicingMemberInfo>;
   @useResult
   $Res call({int speakingVolume, bool muted, bool video, bool shareScreen});
 }
@@ -399,36 +385,33 @@ class _$VoicingMemberInfoCopyWithImpl<$Res, $Val extends VoicingMemberInfo>
     Object? video = null,
     Object? shareScreen = null,
   }) {
-    return _then(
-      _value.copyWith(
-        speakingVolume: null == speakingVolume
-            ? _value.speakingVolume
-            : speakingVolume // ignore: cast_nullable_to_non_nullable
-                as int,
-        muted: null == muted
-            ? _value.muted
-            : muted // ignore: cast_nullable_to_non_nullable
-                as bool,
-        video: null == video
-            ? _value.video
-            : video // ignore: cast_nullable_to_non_nullable
-                as bool,
-        shareScreen: null == shareScreen
-            ? _value.shareScreen
-            : shareScreen // ignore: cast_nullable_to_non_nullable
-                as bool,
-      ) as $Val,
-    );
+    return _then(_value.copyWith(
+      speakingVolume: null == speakingVolume
+          ? _value.speakingVolume
+          : speakingVolume // ignore: cast_nullable_to_non_nullable
+              as int,
+      muted: null == muted
+          ? _value.muted
+          : muted // ignore: cast_nullable_to_non_nullable
+              as bool,
+      video: null == video
+          ? _value.video
+          : video // ignore: cast_nullable_to_non_nullable
+              as bool,
+      shareScreen: null == shareScreen
+          ? _value.shareScreen
+          : shareScreen // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ) as $Val);
   }
 }
 
 /// @nodoc
 abstract class _$$VoicingMemberInfoImplCopyWith<$Res>
     implements $VoicingMemberInfoCopyWith<$Res> {
-  factory _$$VoicingMemberInfoImplCopyWith(
-    _$VoicingMemberInfoImpl value,
-    $Res Function(_$VoicingMemberInfoImpl) then,
-  ) = __$$VoicingMemberInfoImplCopyWithImpl<$Res>;
+  factory _$$VoicingMemberInfoImplCopyWith(_$VoicingMemberInfoImpl value,
+          $Res Function(_$VoicingMemberInfoImpl) then) =
+      __$$VoicingMemberInfoImplCopyWithImpl<$Res>;
   @override
   @useResult
   $Res call({int speakingVolume, bool muted, bool video, bool shareScreen});
@@ -438,10 +421,9 @@ abstract class _$$VoicingMemberInfoImplCopyWith<$Res>
 class __$$VoicingMemberInfoImplCopyWithImpl<$Res>
     extends _$VoicingMemberInfoCopyWithImpl<$Res, _$VoicingMemberInfoImpl>
     implements _$$VoicingMemberInfoImplCopyWith<$Res> {
-  __$$VoicingMemberInfoImplCopyWithImpl(
-    _$VoicingMemberInfoImpl _value,
-    $Res Function(_$VoicingMemberInfoImpl) _then,
-  ) : super(_value, _then);
+  __$$VoicingMemberInfoImplCopyWithImpl(_$VoicingMemberInfoImpl _value,
+      $Res Function(_$VoicingMemberInfoImpl) _then)
+      : super(_value, _then);
 
   /// Create a copy of VoicingMemberInfo
   /// with the given fields replaced by the non-null parameter values.
@@ -453,38 +435,35 @@ class __$$VoicingMemberInfoImplCopyWithImpl<$Res>
     Object? video = null,
     Object? shareScreen = null,
   }) {
-    return _then(
-      _$VoicingMemberInfoImpl(
-        speakingVolume: null == speakingVolume
-            ? _value.speakingVolume
-            : speakingVolume // ignore: cast_nullable_to_non_nullable
-                as int,
-        muted: null == muted
-            ? _value.muted
-            : muted // ignore: cast_nullable_to_non_nullable
-                as bool,
-        video: null == video
-            ? _value.video
-            : video // ignore: cast_nullable_to_non_nullable
-                as bool,
-        shareScreen: null == shareScreen
-            ? _value.shareScreen
-            : shareScreen // ignore: cast_nullable_to_non_nullable
-                as bool,
-      ),
-    );
+    return _then(_$VoicingMemberInfoImpl(
+      speakingVolume: null == speakingVolume
+          ? _value.speakingVolume
+          : speakingVolume // ignore: cast_nullable_to_non_nullable
+              as int,
+      muted: null == muted
+          ? _value.muted
+          : muted // ignore: cast_nullable_to_non_nullable
+              as bool,
+      video: null == video
+          ? _value.video
+          : video // ignore: cast_nullable_to_non_nullable
+              as bool,
+      shareScreen: null == shareScreen
+          ? _value.shareScreen
+          : shareScreen // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
   }
 }
 
 /// @nodoc
 
 class _$VoicingMemberInfoImpl implements _VoicingMemberInfo {
-  const _$VoicingMemberInfoImpl({
-    this.speakingVolume = 0,
-    this.muted = false,
-    this.video = false,
-    this.shareScreen = false,
-  });
+  const _$VoicingMemberInfoImpl(
+      {this.speakingVolume = 0,
+      this.muted = false,
+      this.video = false,
+      this.shareScreen = false});
 
   @override
   @JsonKey()
@@ -528,18 +507,15 @@ class _$VoicingMemberInfoImpl implements _VoicingMemberInfo {
   @pragma('vm:prefer-inline')
   _$$VoicingMemberInfoImplCopyWith<_$VoicingMemberInfoImpl> get copyWith =>
       __$$VoicingMemberInfoImplCopyWithImpl<_$VoicingMemberInfoImpl>(
-        this,
-        _$identity,
-      );
+          this, _$identity);
 }
 
 abstract class _VoicingMemberInfo implements VoicingMemberInfo {
-  const factory _VoicingMemberInfo({
-    final int speakingVolume,
-    final bool muted,
-    final bool video,
-    final bool shareScreen,
-  }) = _$VoicingMemberInfoImpl;
+  const factory _VoicingMemberInfo(
+      {final int speakingVolume,
+      final bool muted,
+      final bool video,
+      final bool shareScreen}) = _$VoicingMemberInfoImpl;
 
   @override
   int get speakingVolume;
@@ -574,9 +550,8 @@ mixin _$VoicingMembers {
 /// @nodoc
 abstract class $VoicingMembersCopyWith<$Res> {
   factory $VoicingMembersCopyWith(
-    VoicingMembers value,
-    $Res Function(VoicingMembers) then,
-  ) = _$VoicingMembersCopyWithImpl<$Res, VoicingMembers>;
+          VoicingMembers value, $Res Function(VoicingMembers) then) =
+      _$VoicingMembersCopyWithImpl<$Res, VoicingMembers>;
   @useResult
   $Res call({List<int> ids, Map<int, VoicingMemberInfo> byId, int? pin});
 }
@@ -595,33 +570,34 @@ class _$VoicingMembersCopyWithImpl<$Res, $Val extends VoicingMembers>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? ids = null, Object? byId = null, Object? pin = freezed}) {
-    return _then(
-      _value.copyWith(
-        ids: null == ids
-            ? _value.ids
-            : ids // ignore: cast_nullable_to_non_nullable
-                as List<int>,
-        byId: null == byId
-            ? _value.byId
-            : byId // ignore: cast_nullable_to_non_nullable
-                as Map<int, VoicingMemberInfo>,
-        pin: freezed == pin
-            ? _value.pin
-            : pin // ignore: cast_nullable_to_non_nullable
-                as int?,
-      ) as $Val,
-    );
+  $Res call({
+    Object? ids = null,
+    Object? byId = null,
+    Object? pin = freezed,
+  }) {
+    return _then(_value.copyWith(
+      ids: null == ids
+          ? _value.ids
+          : ids // ignore: cast_nullable_to_non_nullable
+              as List<int>,
+      byId: null == byId
+          ? _value.byId
+          : byId // ignore: cast_nullable_to_non_nullable
+              as Map<int, VoicingMemberInfo>,
+      pin: freezed == pin
+          ? _value.pin
+          : pin // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ) as $Val);
   }
 }
 
 /// @nodoc
 abstract class _$$VoicingMembersImplCopyWith<$Res>
     implements $VoicingMembersCopyWith<$Res> {
-  factory _$$VoicingMembersImplCopyWith(
-    _$VoicingMembersImpl value,
-    $Res Function(_$VoicingMembersImpl) then,
-  ) = __$$VoicingMembersImplCopyWithImpl<$Res>;
+  factory _$$VoicingMembersImplCopyWith(_$VoicingMembersImpl value,
+          $Res Function(_$VoicingMembersImpl) then) =
+      __$$VoicingMembersImplCopyWithImpl<$Res>;
   @override
   @useResult
   $Res call({List<int> ids, Map<int, VoicingMemberInfo> byId, int? pin});
@@ -632,42 +608,43 @@ class __$$VoicingMembersImplCopyWithImpl<$Res>
     extends _$VoicingMembersCopyWithImpl<$Res, _$VoicingMembersImpl>
     implements _$$VoicingMembersImplCopyWith<$Res> {
   __$$VoicingMembersImplCopyWithImpl(
-    _$VoicingMembersImpl _value,
-    $Res Function(_$VoicingMembersImpl) _then,
-  ) : super(_value, _then);
+      _$VoicingMembersImpl _value, $Res Function(_$VoicingMembersImpl) _then)
+      : super(_value, _then);
 
   /// Create a copy of VoicingMembers
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? ids = null, Object? byId = null, Object? pin = freezed}) {
-    return _then(
-      _$VoicingMembersImpl(
-        ids: null == ids
-            ? _value._ids
-            : ids // ignore: cast_nullable_to_non_nullable
-                as List<int>,
-        byId: null == byId
-            ? _value._byId
-            : byId // ignore: cast_nullable_to_non_nullable
-                as Map<int, VoicingMemberInfo>,
-        pin: freezed == pin
-            ? _value.pin
-            : pin // ignore: cast_nullable_to_non_nullable
-                as int?,
-      ),
-    );
+  $Res call({
+    Object? ids = null,
+    Object? byId = null,
+    Object? pin = freezed,
+  }) {
+    return _then(_$VoicingMembersImpl(
+      ids: null == ids
+          ? _value._ids
+          : ids // ignore: cast_nullable_to_non_nullable
+              as List<int>,
+      byId: null == byId
+          ? _value._byId
+          : byId // ignore: cast_nullable_to_non_nullable
+              as Map<int, VoicingMemberInfo>,
+      pin: freezed == pin
+          ? _value.pin
+          : pin // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
   }
 }
 
 /// @nodoc
 
 class _$VoicingMembersImpl implements _VoicingMembers {
-  const _$VoicingMembersImpl({
-    final List<int> ids = const <int>[],
-    final Map<int, VoicingMemberInfo> byId = const <int, VoicingMemberInfo>{},
-    this.pin,
-  })  : _ids = ids,
+  const _$VoicingMembersImpl(
+      {final List<int> ids = const <int>[],
+      final Map<int, VoicingMemberInfo> byId = const <int, VoicingMemberInfo>{},
+      this.pin})
+      : _ids = ids,
         _byId = byId;
 
   final List<int> _ids;
@@ -708,11 +685,10 @@ class _$VoicingMembersImpl implements _VoicingMembers {
 
   @override
   int get hashCode => Object.hash(
-        runtimeType,
-        const DeepCollectionEquality().hash(_ids),
-        const DeepCollectionEquality().hash(_byId),
-        pin,
-      );
+      runtimeType,
+      const DeepCollectionEquality().hash(_ids),
+      const DeepCollectionEquality().hash(_byId),
+      pin);
 
   /// Create a copy of VoicingMembers
   /// with the given fields replaced by the non-null parameter values.
@@ -721,17 +697,14 @@ class _$VoicingMembersImpl implements _VoicingMembers {
   @pragma('vm:prefer-inline')
   _$$VoicingMembersImplCopyWith<_$VoicingMembersImpl> get copyWith =>
       __$$VoicingMembersImplCopyWithImpl<_$VoicingMembersImpl>(
-        this,
-        _$identity,
-      );
+          this, _$identity);
 }
 
 abstract class _VoicingMembers implements VoicingMembers {
-  const factory _VoicingMembers({
-    final List<int> ids,
-    final Map<int, VoicingMemberInfo> byId,
-    final int? pin,
-  }) = _$VoicingMembersImpl;
+  const factory _VoicingMembers(
+      {final List<int> ids,
+      final Map<int, VoicingMemberInfo> byId,
+      final int? pin}) = _$VoicingMembersImpl;
 
   @override
   List<int> get ids;
@@ -764,9 +737,8 @@ mixin _$IncomingCallState {
 /// @nodoc
 abstract class $IncomingCallStateCopyWith<$Res> {
   factory $IncomingCallStateCopyWith(
-    IncomingCallState value,
-    $Res Function(IncomingCallState) then,
-  ) = _$IncomingCallStateCopyWithImpl<$Res, IncomingCallState>;
+          IncomingCallState value, $Res Function(IncomingCallState) then) =
+      _$IncomingCallStateCopyWithImpl<$Res, IncomingCallState>;
   @useResult
   $Res call({int fromUid, int toUid, bool calling});
 }
@@ -790,32 +762,29 @@ class _$IncomingCallStateCopyWithImpl<$Res, $Val extends IncomingCallState>
     Object? toUid = null,
     Object? calling = null,
   }) {
-    return _then(
-      _value.copyWith(
-        fromUid: null == fromUid
-            ? _value.fromUid
-            : fromUid // ignore: cast_nullable_to_non_nullable
-                as int,
-        toUid: null == toUid
-            ? _value.toUid
-            : toUid // ignore: cast_nullable_to_non_nullable
-                as int,
-        calling: null == calling
-            ? _value.calling
-            : calling // ignore: cast_nullable_to_non_nullable
-                as bool,
-      ) as $Val,
-    );
+    return _then(_value.copyWith(
+      fromUid: null == fromUid
+          ? _value.fromUid
+          : fromUid // ignore: cast_nullable_to_non_nullable
+              as int,
+      toUid: null == toUid
+          ? _value.toUid
+          : toUid // ignore: cast_nullable_to_non_nullable
+              as int,
+      calling: null == calling
+          ? _value.calling
+          : calling // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ) as $Val);
   }
 }
 
 /// @nodoc
 abstract class _$$IncomingCallStateImplCopyWith<$Res>
     implements $IncomingCallStateCopyWith<$Res> {
-  factory _$$IncomingCallStateImplCopyWith(
-    _$IncomingCallStateImpl value,
-    $Res Function(_$IncomingCallStateImpl) then,
-  ) = __$$IncomingCallStateImplCopyWithImpl<$Res>;
+  factory _$$IncomingCallStateImplCopyWith(_$IncomingCallStateImpl value,
+          $Res Function(_$IncomingCallStateImpl) then) =
+      __$$IncomingCallStateImplCopyWithImpl<$Res>;
   @override
   @useResult
   $Res call({int fromUid, int toUid, bool calling});
@@ -825,10 +794,9 @@ abstract class _$$IncomingCallStateImplCopyWith<$Res>
 class __$$IncomingCallStateImplCopyWithImpl<$Res>
     extends _$IncomingCallStateCopyWithImpl<$Res, _$IncomingCallStateImpl>
     implements _$$IncomingCallStateImplCopyWith<$Res> {
-  __$$IncomingCallStateImplCopyWithImpl(
-    _$IncomingCallStateImpl _value,
-    $Res Function(_$IncomingCallStateImpl) _then,
-  ) : super(_value, _then);
+  __$$IncomingCallStateImplCopyWithImpl(_$IncomingCallStateImpl _value,
+      $Res Function(_$IncomingCallStateImpl) _then)
+      : super(_value, _then);
 
   /// Create a copy of IncomingCallState
   /// with the given fields replaced by the non-null parameter values.
@@ -839,33 +807,28 @@ class __$$IncomingCallStateImplCopyWithImpl<$Res>
     Object? toUid = null,
     Object? calling = null,
   }) {
-    return _then(
-      _$IncomingCallStateImpl(
-        fromUid: null == fromUid
-            ? _value.fromUid
-            : fromUid // ignore: cast_nullable_to_non_nullable
-                as int,
-        toUid: null == toUid
-            ? _value.toUid
-            : toUid // ignore: cast_nullable_to_non_nullable
-                as int,
-        calling: null == calling
-            ? _value.calling
-            : calling // ignore: cast_nullable_to_non_nullable
-                as bool,
-      ),
-    );
+    return _then(_$IncomingCallStateImpl(
+      fromUid: null == fromUid
+          ? _value.fromUid
+          : fromUid // ignore: cast_nullable_to_non_nullable
+              as int,
+      toUid: null == toUid
+          ? _value.toUid
+          : toUid // ignore: cast_nullable_to_non_nullable
+              as int,
+      calling: null == calling
+          ? _value.calling
+          : calling // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
   }
 }
 
 /// @nodoc
 
 class _$IncomingCallStateImpl implements _IncomingCallState {
-  const _$IncomingCallStateImpl({
-    this.fromUid = 0,
-    this.toUid = 0,
-    this.calling = false,
-  });
+  const _$IncomingCallStateImpl(
+      {this.fromUid = 0, this.toUid = 0, this.calling = false});
 
   @override
   @JsonKey()
@@ -902,17 +865,14 @@ class _$IncomingCallStateImpl implements _IncomingCallState {
   @pragma('vm:prefer-inline')
   _$$IncomingCallStateImplCopyWith<_$IncomingCallStateImpl> get copyWith =>
       __$$IncomingCallStateImplCopyWithImpl<_$IncomingCallStateImpl>(
-        this,
-        _$identity,
-      );
+          this, _$identity);
 }
 
 abstract class _IncomingCallState implements IncomingCallState {
-  const factory _IncomingCallState({
-    final int fromUid,
-    final int toUid,
-    final bool calling,
-  }) = _$IncomingCallStateImpl;
+  const factory _IncomingCallState(
+      {final int fromUid,
+      final int toUid,
+      final bool calling}) = _$IncomingCallStateImpl;
 
   @override
   int get fromUid;

@@ -174,7 +174,7 @@ final conversationsRefreshingProvider =
 );
 
 typedef _$ConversationsRefreshing = Notifier<bool>;
-String _$conversationsHash() => r'00862a5f6b23882fc53cfc525e2a9ba0dd789cdf';
+String _$conversationsHash() => r'7a4ddb4492b5bf7f1078405deb2ce6e219cfdfc6';
 
 /// See also [Conversations].
 @ProviderFor(Conversations)

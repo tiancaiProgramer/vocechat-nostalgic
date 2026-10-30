@@ -23,6 +23,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/safe_text.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import 'file_display_utils.dart';
+import 'file_download_button.dart';
 import 'motion_photo_overlay.dart';
 
 /// Renders a `vocechat/file` attachment or a `vocechat/audio` voice message.
@@ -1720,19 +1721,16 @@ class _FileCard extends StatelessWidget {
             Text('${(progress! * 100).floor()}%'),
           ],
           if (canDownload)
-            IconButton(
-              tooltip: AppL10n.of(context).tooltipDownload,
-              icon: Icon(
-                Icons.download_outlined,
-                color: AppTokens.gray500,
-                size: 22,
-              ),
-              onPressed: () => downloadAndSave(
+            FileDownloadButton(
+              key: ValueKey(urls!.download),
+              onDownload: (onProgress, onSaving) => downloadAndSave(
                 context,
                 ProviderScope.containerOf(context, listen: false),
                 urls!.download,
-                meta.name.isEmpty ? meta.path.split('/').last : meta.name,
+                label,
                 contentType: meta.contentType,
+                onReceiveProgress: onProgress,
+                onSaving: onSaving,
               ),
             ),
         ],

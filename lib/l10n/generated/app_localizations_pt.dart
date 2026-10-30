@@ -1902,4 +1902,84 @@ class AppL10nPt extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => 'Baixando…';
+
+  @override
+  String get downloadSaving => 'Salvando…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return 'Salvo em $path';
+  }
+
+  @override
+  String get appearanceFontSize => 'Tamanho do texto';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      'Deslize para ajustar o tamanho do texto em todo o app. As alterações são salvas automaticamente.';
+
+  @override
+  String get appearanceFontSizePreview =>
+      'Escolha um tamanho confortável para ler e conversar.';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent% (Padrão)';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => 'Restaurar padrão';
+
+  @override
+  String get appearanceFontSizeSaveFailed =>
+      'Não foi possível salvar o tamanho do texto. Tente novamente.';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => 'Fonte';
+
+  @override
+  String get appearanceFontFamilySystem => 'Usar fonte do sistema';
+
+  @override
+  String get appearanceFontFamilyBundled => 'Fonte padrão do app';
+
+  @override
+  String get appearanceFontFamilySaveFailed =>
+      'Não foi possível salvar a fonte. Tente novamente.';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      'Não foi possível ler a fonte do telefone. Usando a fonte padrão do sistema.';
 }

@@ -1798,4 +1798,78 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => '分别添加';
+
+  @override
+  String get downloadInProgress => '正在下载';
+
+  @override
+  String get downloadSaving => '正在保存';
+
+  @override
+  String downloadSavedTo(String path) {
+    return '已保存到 $path';
+  }
+
+  @override
+  String get appearanceFontSize => '字体大小';
+
+  @override
+  String get appearanceFontSizeDescription => '滑动调节应用内的字体大小，设置会自动保存。';
+
+  @override
+  String get appearanceFontSizePreview => '选择舒适的字号，让阅读和聊天更轻松。';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent%（默认）';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => '恢复默认';
+
+  @override
+  String get appearanceFontSizeSaveFailed => '字体大小保存失败，请重试。';
+
+  @override
+  String get aboutGithubProject => 'GitHub 项目';
+
+  @override
+  String get aboutCheckUpdates => '检查更新';
+
+  @override
+  String get aboutGithubUpdateSource => '怀旧版 · GitHub 正式发行版';
+
+  @override
+  String get aboutNoRelease => 'GitHub 暂无正式发行版本。';
+
+  @override
+  String aboutUpToDate(String version) {
+    return '当前版本无需更新。GitHub 发行版：$version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed => '检查更新失败，请检查网络后重试。';
+
+  @override
+  String get aboutViewRelease => '在 GitHub 查看';
+
+  @override
+  String get appearanceFontFamily => '字体';
+
+  @override
+  String get appearanceFontFamilySystem => '跟随系统字体';
+
+  @override
+  String get appearanceFontFamilyBundled => '应用默认字体';
+
+  @override
+  String get appearanceFontFamilySaveFailed => '字体保存失败，请重试。';
+
+  @override
+  String get appearanceSystemFontUnavailable => '暂时无法读取手机字体，已使用系统默认字体。';
 }

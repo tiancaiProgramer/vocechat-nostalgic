@@ -2505,7 +2505,7 @@ class _MessageRowState extends ConsumerState<MessageRow> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: AppTokens.gray700,
+                              color: AppTokens.messageSender,
                               height: 20 / 14,
                             ),
                           ),
@@ -2570,6 +2570,9 @@ class _MessageRowState extends ConsumerState<MessageRow> {
                   ],
                 ),
               ),
+              // In the split layout, wrap content before the opposite
+              // avatar column as well (40px avatar + 16px gap).
+              if (layout == ChatLayoutMode.selfRight) const SizedBox(width: 56),
             ],
           ),
         ],

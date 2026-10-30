@@ -1885,4 +1885,81 @@ class AppL10nJa extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => 'ダウンロード中…';
+
+  @override
+  String get downloadSaving => '保存中…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return '$path に保存しました';
+  }
+
+  @override
+  String get appearanceFontSize => '文字サイズ';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      'スライダーでアプリ全体の文字サイズを調整できます。変更は自動的に保存されます。';
+
+  @override
+  String get appearanceFontSizePreview => '読みやすく、チャットしやすい文字サイズを選びましょう。';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent%（標準）';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => '標準に戻す';
+
+  @override
+  String get appearanceFontSizeSaveFailed => '文字サイズを保存できませんでした。もう一度お試しください。';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => 'フォント';
+
+  @override
+  String get appearanceFontFamilySystem => 'システムのフォントに従う';
+
+  @override
+  String get appearanceFontFamilyBundled => 'アプリの標準フォント';
+
+  @override
+  String get appearanceFontFamilySaveFailed => 'フォントを保存できませんでした。もう一度お試しください。';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      '端末のフォントを読み取れないため、システムの標準フォントを使用しています。';
 }

@@ -92,9 +92,7 @@ Future<({GoRouter router, ProviderContainer container})> _mount(
     userDirectoryProvider.overrideWith(_Users.new),
     authControllerProvider.overrideWith(_Auth.new),
     conversationsProvider.overrideWith(_Conversations.new),
-    contactsProvider.overrideWith((ref) async => const [
-          ContactInfo(uid: 8, name: 'Alice', email: 'alice@example.test')
-        ]),
+    contactsProvider.overrideWith(_Contacts.new),
     contactSearchApiProvider
         .overrideWithValue(people ?? _People((q, t) async => null)),
     messageSearchFactoryProvider.overrideWithValue(
@@ -239,4 +237,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Old account result'), findsNothing);
   });
+}
+
+class _Contacts extends Contacts {
+  @override
+  Future<List<ContactInfo>> build() async => const [
+        ContactInfo(uid: 8, name: 'Alice', email: 'alice@example.test'),
+      ];
 }

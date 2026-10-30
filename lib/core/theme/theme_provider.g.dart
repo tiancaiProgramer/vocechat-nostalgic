@@ -6,7 +6,7 @@ part of 'theme_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$themeModeNotifierHash() => r'c475501ce6bda9ac5e2aa9b7e083bdfdfeca6c83';
+String _$themeModeNotifierHash() => r'51d412a9062411ccbc6fa93c3d34580d3b7fee03';
 
 /// Persisted [ThemeMode] preference. Defaults to follow-system, then hydrates
 /// from SharedPreferences on first build.

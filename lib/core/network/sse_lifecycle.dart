@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'sse_client.dart';
 import 'resume_reconnect_observer.dart';
@@ -13,6 +14,15 @@ import '../utils/app_log.dart';
 import '../../features/auth/application/auth_controller.dart';
 
 part 'sse_lifecycle.g.dart';
+
+final connectivityChangesProvider = Provider<Stream<List<ConnectivityResult>>>(
+  (ref) => Connectivity().onConnectivityChanged,
+);
+
+int? _authenticatedUid(AsyncValue<AuthState> value) {
+  final auth = value.valueOrNull;
+  return auth is AuthStateAuthenticated ? auth.user.uid : null;
+}
 
 // ---------------------------------------------------------------------------
 // SSE token watcher
@@ -52,8 +62,8 @@ class SseTokenWatcher extends _$SseTokenWatcher {
 
     // React to login/logout and account switch by restarting the poll loop
     // against the right token-store key.
-    final authState = ref.watch(authControllerProvider).valueOrNull;
-    if (authState is! AuthStateAuthenticated) {
+    final uid = ref.watch(authControllerProvider.select(_authenticatedUid));
+    if (uid == null) {
       _stop();
       return;
     }
@@ -118,13 +128,14 @@ class SseTokenWatcher extends _$SseTokenWatcher {
 class SseConnectivityWatcher extends _$SseConnectivityWatcher {
   StreamSubscription<List<ConnectivityResult>>? _sub;
   bool _wasOffline = false;
+  Set<ConnectivityResult>? _interfaces;
 
   @override
   void build() {
     ref.onDispose(_stop);
 
-    final authState = ref.watch(authControllerProvider).valueOrNull;
-    if (authState is! AuthStateAuthenticated) {
+    final uid = ref.watch(authControllerProvider.select(_authenticatedUid));
+    if (uid == null) {
       _stop();
       return;
     }
@@ -134,11 +145,14 @@ class SseConnectivityWatcher extends _$SseConnectivityWatcher {
 
   void _start() {
     _stop();
-    final connectivity = Connectivity();
-    _sub = connectivity.onConnectivityChanged.listen((results) {
+    _sub = ref.read(connectivityChangesProvider).listen((results) {
       // results is a list because devices can have multiple active
       // interfaces (e.g. WiFi + cellular). "online" = anything except `none`.
-      final online = results.any((r) => r != ConnectivityResult.none);
+      final interfaces =
+          results.where((r) => r != ConnectivityResult.none).toSet();
+      final previous = _interfaces;
+      _interfaces = interfaces;
+      final online = interfaces.isNotEmpty;
       if (!online) {
         AppLog.w(LogTag.sse, () => '📵 connectivity lost');
         _wasOffline = true;
@@ -147,7 +161,10 @@ class SseConnectivityWatcher extends _$SseConnectivityWatcher {
             .set(SseStatus.disconnected);
         return;
       }
-      if (_wasOffline) {
+      final changed = previous != null &&
+          (previous.length != interfaces.length ||
+              !previous.containsAll(interfaces));
+      if (_wasOffline || changed) {
         AppLog.w(
             LogTag.sse, () => '📶 connectivity restored → reconnecting SSE');
         _wasOffline = false;
@@ -181,8 +198,8 @@ class SseLifecycleWatcher extends _$SseLifecycleWatcher {
   void build() {
     ref.onDispose(_stop);
 
-    final authState = ref.watch(authControllerProvider).valueOrNull;
-    if (authState is! AuthStateAuthenticated) {
+    final uid = ref.watch(authControllerProvider.select(_authenticatedUid));
+    if (uid == null) {
       _stop();
       return;
     }

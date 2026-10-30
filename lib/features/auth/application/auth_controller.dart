@@ -7,6 +7,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../../../core/privacy/email_privacy_provider.dart';
 import '../../../core/storage/account_store.dart';
 import '../../../core/storage/login_device_id.dart';
 import '../../../core/storage/media_cache.dart';
@@ -72,6 +73,7 @@ class AuthController extends _$AuthController {
   /// assertion.
   bool _suppressStoreReact = false;
   int _sessionGeneration = 0;
+  Object _profileRequest = Object();
   Future<void> _startupValidation = Future.value();
   CancelToken? _startupCancel;
   final _tokenRenewals = <String, Future<void>>{};
@@ -82,6 +84,7 @@ class AuthController extends _$AuthController {
 
   void _supersedeStartup() {
     _sessionGeneration++;
+    _profileRequest = Object();
     _startupCancel?.cancel('Session changed');
     _startupCancel = null;
     _serverIdentityCheck = null;
@@ -95,6 +98,28 @@ class AuthController extends _$AuthController {
   Future<AuthState> build() async {
     final generation = ++_sessionGeneration;
     ref.onDispose(_supersedeStartup);
+    ref.listen(emailPrivacyProvider, (_, policy) {
+      _profileRequest = Object();
+      final current = state.valueOrNull;
+      if (policy.redact && current is AuthStateAuthenticated) {
+        final redacted = AsyncData<AuthState>(AuthState.authenticated(
+          user: current.user.copyWith(email: null),
+        ));
+        state = state.isLoading
+            ? const AsyncLoading<AuthState>()
+                .copyWithPrevious(redacted, isRefresh: false)
+            : redacted;
+      }
+      final id = policy.accountId;
+      if (id != null) {
+        unawaited(ref
+            .read(accountStoreProvider.notifier)
+            .setDisplayEmailHidden(id, policy.redact)
+            .catchError((Object e) {
+          AppLog.w(LogTag.auth, () => 'email cache purge failed: $e');
+        }));
+      }
+    });
     bootLog('5 AuthController.build: enter');
     // Listen — instead of watch — so updates to accountStore (e.g. login
     // creating/selecting a new account, or the user switching accounts)
@@ -175,13 +200,13 @@ class AuthController extends _$AuthController {
   }
 
   AuthState _savedSession(AccountConfig account) => AuthState.authenticated(
-        user: VoceUser(
+        user: _protectUser(VoceUser(
           uid: account.uid,
           name: account.name,
           email: account.email,
           isAdmin: account.isAdmin,
           avatarUpdatedAt: account.avatarUpdatedAt,
-        ),
+        )),
       );
 
   AccountConfig? _currentAccount() {
@@ -257,11 +282,21 @@ class AuthController extends _$AuthController {
 
       // Dio already refreshes on 401 and retries this request once. Starting
       // another refresh here can reuse the old, already-rotated refresh token.
-      final user = await api.me(cancelToken: cancelToken);
+      final policy = ref.read(emailPrivacyProvider);
+      final responseUser = await api.me(cancelToken: cancelToken);
       _requireSession(generation);
+      if (ref.read(emailPrivacyProvider).revision != policy.revision) {
+        return _savedSession(_currentAccount() ?? account);
+      }
+      ref.read(emailPrivacyProvider.notifier).verifyRole(responseUser.isAdmin);
+      final verified = ref.read(emailPrivacyProvider);
+      final user = _protectUser(responseUser);
       AppLog.d(LogTag.auth, () => '🟦 bootstrap: me() ok uid=${user.uid}');
       await _syncAccountProfile(account, user);
       _requireSession(generation);
+      if (ref.read(emailPrivacyProvider).revision != verified.revision) {
+        return _savedSession(_currentAccount() ?? account);
+      }
       ref.read(authRestoreFailureProvider.notifier).state = null;
       return AuthState.authenticated(user: user);
     } on DioException catch (e) {
@@ -294,21 +329,27 @@ class AuthController extends _$AuthController {
   /// Keep the saved [AccountConfig]'s display fields (name/email/avatar) in
   /// sync with the latest `/api/user/me`, so the account-switcher list
   /// doesn't show stale info after a profile edit.
+  VoceUser _protectUser(VoceUser user) =>
+      ref.read(emailPrivacyProvider).redact ? user.copyWith(email: null) : user;
+
   Future<void> _syncAccountProfile(AccountConfig account, VoceUser user) async {
-    if (account.name == user.name &&
-        account.email == user.email &&
-        account.isAdmin == user.isAdmin &&
-        account.avatarUpdatedAt == user.avatarUpdatedAt) {
-      return;
-    }
-    await ref.read(accountStoreProvider.notifier).upsertAccount(
-          account.copyWith(
-            name: user.name,
-            email: user.email,
-            isAdmin: user.isAdmin,
-            avatarUpdatedAt: user.avatarUpdatedAt,
-          ),
+    final policy = ref.read(emailPrivacyProvider);
+    final generation = _sessionGeneration;
+    await ref.read(accountStoreProvider.notifier).updateAccount(
+      account.accountId,
+      (saved) {
+        if (generation != _sessionGeneration ||
+            ref.read(emailPrivacyProvider).revision != policy.revision ||
+            policy.accountId != account.accountId) return saved;
+        final protected = _protectUser(user);
+        return saved.copyWith(
+          name: protected.name,
+          email: protected.email,
+          isAdmin: protected.isAdmin,
+          avatarUpdatedAt: protected.avatarUpdatedAt,
         );
+      },
+    );
   }
 
   /// Exchange refresh token for a new access token; persist on success.
@@ -968,7 +1009,10 @@ class AuthController extends _$AuthController {
     // initial auth bootstrap to the router's redirect logic.
     // isRefresh: false — see login() for why the default true is wrong here.
     state = AsyncLoading<AuthState>().copyWithPrevious(state, isRefresh: false);
-    state = await AsyncValue.guard(_bootstrap);
+    final generation = _sessionGeneration;
+    final restored =
+        await AsyncValue.guard(() => _bootstrap(generation: generation));
+    if (generation == _sessionGeneration) state = restored;
   }
 
   /// Re-fetch `/api/user/me` and update [state] in place, without the token
@@ -978,17 +1022,56 @@ class AuthController extends _$AuthController {
   /// flash or redundant refresh-token exchange. No-op if not authenticated.
   Future<void> refreshUser() async {
     final current = state.valueOrNull;
-    if (current is! AuthStateAuthenticated) return;
+    final account = _currentAccount();
+    if (state.isLoading ||
+        current is! AuthStateAuthenticated ||
+        account == null ||
+        current.user.uid != account.uid) return;
+    final policy = ref.read(emailPrivacyProvider);
+    final generation = _sessionGeneration;
+    final request = _profileRequest = Object();
     try {
-      final user = await ref.read(authApiProvider).me();
-      final account = _currentAccount();
-      if (account != null) {
-        await _syncAccountProfile(account, user);
-      }
+      final responseUser = await ref.read(authApiProvider).me();
+      if (generation != _sessionGeneration ||
+          request != _profileRequest ||
+          ref.read(emailPrivacyProvider).revision != policy.revision) return;
+      ref.read(emailPrivacyProvider.notifier).verifyRole(responseUser.isAdmin);
+      final verified = ref.read(emailPrivacyProvider);
+      final verifiedRequest = _profileRequest;
+      final user = _protectUser(responseUser);
+      await _syncAccountProfile(account, user);
+      // Role verification intentionally updates the privacy revision and listener.
+      if (generation != _sessionGeneration ||
+          _profileRequest != verifiedRequest ||
+          ref.read(emailPrivacyProvider).revision != verified.revision) return;
       state = AsyncData(AuthState.authenticated(user: user));
     } catch (e) {
-      AppLog.w(LogTag.auth, () => '🟦 refreshUser: me() failed: $e');
-      // Best-effort — keep the previous state on failure.
+      AppLog.w(LogTag.auth, () => 'refreshUser deferred: $e');
     }
+  }
+
+  /// Full snapshots may clear emails; partial logs use null as unchanged.
+  void applyUsers(List<Map<String, dynamic>> users, {bool partial = false}) {
+    final current = state.valueOrNull;
+    final account = _currentAccount();
+    if (state.isLoading ||
+        current is! AuthStateAuthenticated ||
+        account == null ||
+        current.user.uid != account.uid) return;
+    final update = users.where((u) => u['uid'] == current.user.uid).lastOrNull;
+    if (update == null) return;
+    _profileRequest = Object();
+    if (update['is_admin'] case final bool isAdmin) {
+      ref.read(emailPrivacyProvider.notifier).verifyRole(isAdmin);
+    }
+    final user = _protectUser(VoceUser.fromJson({
+      ...current.user.toJson(),
+      for (final entry in update.entries)
+        if (!partial || entry.value != null) entry.key: entry.value,
+    }));
+    state = AsyncData(AuthState.authenticated(user: user));
+    unawaited(_syncAccountProfile(account, user).catchError((Object e) {
+      AppLog.w(LogTag.auth, () => 'profile cache update failed: $e');
+    }));
   }
 }

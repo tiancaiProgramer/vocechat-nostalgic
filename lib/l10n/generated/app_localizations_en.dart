@@ -1896,4 +1896,84 @@ class AppL10nEn extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => 'Downloading…';
+
+  @override
+  String get downloadSaving => 'Saving…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return 'Saved to $path';
+  }
+
+  @override
+  String get appearanceFontSize => 'Font size';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      'Drag the slider to adjust text size throughout the app. Changes are saved automatically.';
+
+  @override
+  String get appearanceFontSizePreview =>
+      'Find a comfortable size for reading and chatting.';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent% (Default)';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => 'Reset to default';
+
+  @override
+  String get appearanceFontSizeSaveFailed =>
+      'Couldn\'t save font size. Please try again.';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => 'Font';
+
+  @override
+  String get appearanceFontFamilySystem => 'Follow system font';
+
+  @override
+  String get appearanceFontFamilyBundled => 'App default font';
+
+  @override
+  String get appearanceFontFamilySaveFailed =>
+      'Couldn\'t save the font. Please try again.';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      'The phone’s font could not be read. Using the standard system font.';
 }

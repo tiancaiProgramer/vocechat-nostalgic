@@ -1904,4 +1904,84 @@ class AppL10nRu extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => 'Загрузка…';
+
+  @override
+  String get downloadSaving => 'Сохранение…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return 'Сохранено в $path';
+  }
+
+  @override
+  String get appearanceFontSize => 'Размер текста';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      'Перемещайте ползунок, чтобы изменить размер текста в приложении. Изменения сохраняются автоматически.';
+
+  @override
+  String get appearanceFontSizePreview =>
+      'Выберите удобный размер текста для чтения и общения.';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent% (По умолчанию)';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => 'Сбросить';
+
+  @override
+  String get appearanceFontSizeSaveFailed =>
+      'Не удалось сохранить размер текста. Попробуйте ещё раз.';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => 'Шрифт';
+
+  @override
+  String get appearanceFontFamilySystem => 'Использовать системный шрифт';
+
+  @override
+  String get appearanceFontFamilyBundled => 'Шрифт приложения по умолчанию';
+
+  @override
+  String get appearanceFontFamilySaveFailed =>
+      'Не удалось сохранить шрифт. Попробуйте ещё раз.';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      'Не удалось прочитать шрифт телефона. Используется стандартный системный шрифт.';
 }

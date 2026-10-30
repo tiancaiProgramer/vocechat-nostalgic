@@ -1,6 +1,9 @@
+import 'package:vocechat_client/features/app_update/data/nostalgic_github_update.dart';
+import 'package:vocechat_client/features/app_update/presentation/nostalgic_update_tile.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,16 +30,101 @@ void desktopTestWidgets(String name, WidgetTesterCallback callback) {
 }
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('vocechat/system_font'),
+            (call) async => call.method == 'describe' ? [] : null);
+  });
+  tearDown(() => TestDefaultBinaryMessengerBinding
+      .instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+          const MethodChannel('vocechat/system_font'), null));
+
+  testWidgets('Appearance and language exposes the font family choices',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(overrides: [
+      authControllerProvider.overrideWith(_RegularAuthController.new),
+      serverStoreProvider.overrideWith(_TestServerStore.new),
+    ], child: _localizedApp()));
+    await tester.pumpAndSettle();
+    final menu = find.text('Appearance & Language');
+    await tester.ensureVisible(menu);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    final option = find.byKey(const Key('font-family-bundled'));
+    await tester.ensureVisible(option);
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+    expect(find.text('Follow system font'), findsOneWidget);
+    expect(find.text('App default font'), findsOneWidget);
+    expect((await SharedPreferences.getInstance()).getString('app.fontFamily'),
+        'bundled');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'nostalgic About exposes own website, project and update at large font',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final opened = <Uri>[];
+    await tester.pumpWidget(ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_RegularAuthController.new),
+          serverStoreProvider.overrideWith(_TestServerStore.new),
+          appPackageInfoProvider.overrideWith((ref) async => PackageInfo(
+              appName: 'vocechat怀旧版',
+              packageName: 'com.privoce.vocechatclient.legacyui',
+              version: '0.3.35-r9',
+              buildNumber: '3130')),
+          serverVersionProvider.overrideWith((ref) async => '0.5.39'),
+          aboutLinkLauncherProvider.overrideWithValue((uri) async {
+            opened.add(uri);
+            return true;
+          }),
+        ],
+        child: MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppL10n.localizationsDelegates,
+            supportedLocales: AppL10n.supportedLocales,
+            builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(1.3)),
+                child: child!),
+            home: const Scaffold(body: SettingsScreen()))));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('About'));
+    await tester.tap(find.text('About'));
+    await tester.pumpAndSettle();
+    expect(find.text('vocechat怀旧版'), findsOneWidget);
+    expect(find.text('0.3.35-r9 (3130)'), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
+    final opens = find.text('Open');
+    await tester.ensureVisible(opens.first);
+    await tester.tap(opens.first);
+    await tester.pump();
+    await tester.ensureVisible(opens.last);
+    await tester.tap(opens.last);
+    await tester.pump();
+    expect(opened, [nostalgicWebsiteUrl, nostalgicProjectUrl]);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final keepAlive in [false, true]) {
-    testWidgets('notification controls accurately reflect FCM mode (keepAlive=$keepAlive)', (tester) async {
+    testWidgets(
+        'notification controls accurately reflect FCM mode (keepAlive=$keepAlive)',
+        (tester) async {
       await tester.pumpWidget(ProviderScope(overrides: [
         authControllerProvider.overrideWith(_RegularAuthController.new),
         serverStoreProvider.overrideWith(_TestServerStore.new),
-        backgroundPreferencesProvider.overrideWith(() => _NotificationPreferences(keepAlive)),
+        backgroundPreferencesProvider
+            .overrideWith(() => _NotificationPreferences(keepAlive)),
         firebaseInitializedProvider.overrideWith((ref) => true),
-        fcmPhaseProvider.overrideWith((ref) => keepAlive ? FcmPhase.standby : FcmPhase.registered),
+        fcmPhaseProvider.overrideWith(
+            (ref) => keepAlive ? FcmPhase.standby : FcmPhase.registered),
       ], child: _localizedApp()));
       await tester.pumpAndSettle();
       final menu = find.text('Notifications');
@@ -214,8 +302,11 @@ class _NotificationPreferences extends BackgroundPreferences {
   _NotificationPreferences(this.keepAlive);
   final bool keepAlive;
   @override
-  Future<BackgroundStatus> build() async => BackgroundStatus(enabled: keepAlive,
-      notifications: true, batteryExempt: true, pushEnabled: true);
+  Future<BackgroundStatus> build() async => BackgroundStatus(
+      enabled: keepAlive,
+      notifications: true,
+      batteryExempt: true,
+      pushEnabled: true);
 }
 
 Widget _localizedApp() {

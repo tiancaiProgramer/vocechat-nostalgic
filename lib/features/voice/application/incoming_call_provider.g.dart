@@ -6,7 +6,7 @@ part of 'incoming_call_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$incomingCallHash() => r'280848394be877a97565b320fe701e31f67680be';
+String _$incomingCallHash() => r'8c5d0f85af7bb851e72e5a113834cb58ef9f5479';
 
 /// Discovers incoming/outgoing DM call invites by polling the server's
 /// active-channel list, mirroring the web reference's `useGetAgoraChannelsQuery`

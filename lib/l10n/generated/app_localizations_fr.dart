@@ -1904,4 +1904,85 @@ class AppL10nFr extends AppL10n {
 
   @override
   String get livePhotoPairSeparate => 'Keep separate';
+
+  @override
+  String get downloadInProgress => 'Téléchargement…';
+
+  @override
+  String get downloadSaving => 'Enregistrement…';
+
+  @override
+  String downloadSavedTo(String path) {
+    return 'Enregistré dans $path';
+  }
+
+  @override
+  String get appearanceFontSize => 'Taille du texte';
+
+  @override
+  String get appearanceFontSizeDescription =>
+      'Faites glisser le curseur pour ajuster la taille du texte dans l’application. Les modifications sont enregistrées automatiquement.';
+
+  @override
+  String get appearanceFontSizePreview =>
+      'Choisissez une taille confortable pour lire et discuter.';
+
+  @override
+  String appearanceFontSizeDefault(int percent) {
+    return '$percent% (Par défaut)';
+  }
+
+  @override
+  String appearanceFontSizeValue(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get appearanceFontSizeReset => 'Rétablir par défaut';
+
+  @override
+  String get appearanceFontSizeSaveFailed =>
+      'Impossible d’enregistrer la taille du texte. Réessayez.';
+
+  @override
+  String get aboutGithubProject => 'GitHub project';
+
+  @override
+  String get aboutCheckUpdates => 'Check for updates';
+
+  @override
+  String get aboutGithubUpdateSource => 'VoceChat Nostalgic · GitHub Releases';
+
+  @override
+  String get aboutNoRelease => 'No published releases yet.';
+
+  @override
+  String aboutUpToDate(String version) {
+    return 'Your version is up to date. GitHub release: $version';
+  }
+
+  @override
+  String get aboutUpdateCheckFailed =>
+      'Could not check for updates. Check your network and try again.';
+
+  @override
+  String get aboutViewRelease => 'View on GitHub';
+
+  @override
+  String get appearanceFontFamily => 'Police';
+
+  @override
+  String get appearanceFontFamilySystem => 'Suivre la police du système';
+
+  @override
+  String get appearanceFontFamilyBundled =>
+      'Police par défaut de l’application';
+
+  @override
+  String get appearanceFontFamilySaveFailed =>
+      'Impossible d’enregistrer la police. Réessayez.';
+
+  @override
+  String get appearanceSystemFontUnavailable =>
+      'Impossible de lire la police du téléphone. La police standard du système est utilisée.';
 }

@@ -1,3 +1,4 @@
+import 'package:vocechat_client/core/storage/account_store.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -59,13 +60,20 @@ class _Chat extends ChatController {
       [_message(8, target)];
 }
 
+class _Accounts extends AccountStore {
+  @override
+  Future<AccountState> build() async => const AccountState();
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late ProviderContainer container;
   late StreamController<ChatEvent> events;
 
   setUp(() async {
     events = StreamController<ChatEvent>();
     container = ProviderContainer(overrides: [
+      accountStoreProvider.overrideWith(_Accounts.new),
       serverStoreProvider.overrideWith(_Servers.new),
       sseEventsProvider.overrideWith((ref) => events.stream),
       chatControllerProvider(_group).overrideWith(_Chat.new),

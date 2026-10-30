@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 // barrel
 import 'package:flutter/material.dart';
 
@@ -116,6 +117,8 @@ class AppTokens {
   static Color get accentBorder =>
       _dark ? const Color(0xFF0E7090) : const Color(0xFF67E3F9);
 
+  static Color get messageSender => _dark ? primary500 : accent700;
+
   // ---------- Decorative ----------
   static Color get wolfGray =>
       _dark ? const Color(0xFF4B5563) : const Color(0xFFC5C7D0);
@@ -133,7 +136,12 @@ class AppTheme {
   /// active [ThemeMode].
   static void applyBrightness(Brightness b) => AppTokens.brightness = b;
 
-  static ThemeData get lightTheme {
+  static ThemeData get lightTheme => light();
+
+  static ThemeData light(
+      {bool useSystemFont = false,
+      String? systemFontFamily,
+      List<String> systemFontFallback = const []}) {
     // Light palette, frozen — does NOT read [AppTokens], so the global
     // brightness flag does not interfere with the ThemeData itself.
     final base = ColorScheme.fromSeed(
@@ -156,10 +164,18 @@ class AppTheme {
       error: const Color(0xFFF04438),
     );
 
-    return _buildTheme(base, Brightness.light);
+    return _buildTheme(base, Brightness.light,
+        useSystemFont: useSystemFont,
+        systemFontFamily: systemFontFamily,
+        systemFontFallback: systemFontFallback);
   }
 
-  static ThemeData get darkTheme {
+  static ThemeData get darkTheme => dark();
+
+  static ThemeData dark(
+      {bool useSystemFont = false,
+      String? systemFontFamily,
+      List<String> systemFontFallback = const []}) {
     // Web reference dark palette
     //   bg page    neutral-900  #0A0A0A
     //   bg card    gray-800     #1F2937
@@ -192,10 +208,28 @@ class AppTheme {
       error: const Color(0xFFF87171),
     );
 
-    return _buildTheme(base, Brightness.dark);
+    return _buildTheme(base, Brightness.dark,
+        useSystemFont: useSystemFont,
+        systemFontFamily: systemFontFamily,
+        systemFontFallback: systemFontFallback);
   }
 
-  static ThemeData _buildTheme(ColorScheme scheme, Brightness brightness) {
+  static ThemeData _buildTheme(ColorScheme scheme, Brightness brightness,
+      {required bool useSystemFont,
+      String? systemFontFamily,
+      List<String> systemFontFallback = const []}) {
+    // Native-resolved font data handles OEM theme fonts that Flutter's generic
+    // Android family cannot see. Other platforms retain platform typography.
+    final fontFamily = useSystemFont
+        ? systemFontFamily ??
+            switch (defaultTargetPlatform) {
+              TargetPlatform.android || TargetPlatform.fuchsia => 'sans-serif',
+              TargetPlatform.iOS ||
+              TargetPlatform.macOS =>
+                'CupertinoSystemText',
+              _ => null,
+            }
+        : 'Inter';
     final isDark = brightness == Brightness.dark;
     final scaffoldBg =
         isDark ? const Color(0xFF0A0A0A) : const Color(0xFFF2F4F7);
@@ -207,28 +241,30 @@ class AppTheme {
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: scaffoldBg,
-      cupertinoOverrideTheme: const CupertinoThemeData(
-          primaryColor: Color(0xFF22CCEE),
+      cupertinoOverrideTheme: CupertinoThemeData(
+          primaryColor: const Color(0xFF22CCEE),
           textTheme: CupertinoTextThemeData(
-              textStyle: TextStyle(fontFamily: 'Inter', fontSize: 16),
+              textStyle: TextStyle(fontFamily: fontFamily, fontSize: 16),
               tabLabelTextStyle: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: fontFamily,
                   fontSize: 10,
                   fontWeight: FontWeight.w400))),
-      fontFamily: 'Inter',
+      fontFamily: fontFamily,
       // Inter has no emoji glyphs — without an explicit fallback chain, emoji
       // in user-supplied text (names, messages) renders as tofu / □ on
       // platforms whose system fallback isn't picked up automatically.
       // List every common platform's color-emoji font so at least one is
       // present at runtime.
-      fontFamilyFallback: const [
-        'Apple Color Emoji', // macOS / iOS
-        'Segoe UI Emoji', // Windows
-        'Noto Color Emoji', // Linux / Android (modern)
-        'Noto Sans CJK SC', // CJK fallback for Linux
-        'PingFang SC', // CJK fallback for Apple
-        'Microsoft YaHei', // CJK fallback for Windows
-      ],
+      fontFamilyFallback: useSystemFont
+          ? (systemFontFallback.isEmpty ? null : systemFontFallback)
+          : const [
+              'Apple Color Emoji', // macOS / iOS
+              'Segoe UI Emoji', // Windows
+              'Noto Color Emoji', // Linux / Android (modern)
+              'Noto Sans CJK SC', // CJK fallback for Linux
+              'PingFang SC', // CJK fallback for Apple
+              'Microsoft YaHei', // CJK fallback for Windows
+            ],
       appBarTheme: AppBarTheme(
         backgroundColor: appBarBg,
         foregroundColor: isDark ? Colors.white : const Color(0xFF1D2939),
@@ -237,7 +273,7 @@ class AppTheme {
         centerTitle: true,
         toolbarHeight: 56,
         titleTextStyle: TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: fontFamily,
           fontSize: 17,
           fontWeight: FontWeight.w600,
           color: isDark ? Colors.white : const Color(0xFF344054),
@@ -335,9 +371,11 @@ class AppTheme {
           }),
           foregroundColor: const WidgetStatePropertyAll(Colors.white),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-          textStyle: const WidgetStatePropertyAll(
+          textStyle: WidgetStatePropertyAll(
             TextStyle(
-                fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500),
+                fontFamily: fontFamily,
+                fontSize: 14,
+                fontWeight: FontWeight.w500),
           ),
         ),
       ),
@@ -353,15 +391,19 @@ class AppTheme {
           side: BorderSide(
             color: isDark ? const Color(0xFF6B7280) : const Color(0xFFD1D5DB),
           ),
-          textStyle: const TextStyle(
-              fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: TextStyle(
+              fontFamily: fontFamily,
+              fontSize: 14,
+              fontWeight: FontWeight.w500),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          textStyle: const TextStyle(
-              fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: TextStyle(
+              fontFamily: fontFamily,
+              fontSize: 14,
+              fontWeight: FontWeight.w500),
         ),
       ),
       // Web styled/Toggle.tsx: 44×24 track (radius 12), white 20px knob,
@@ -409,11 +451,13 @@ class AppTheme {
             isDark ? const Color(0xFF1F2937) : const Color(0xFFFFFFFF),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         titleTextStyle: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: isDark ? Colors.white : const Color(0xFF475467),
         ),
         contentTextStyle: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 14,
           color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF98A2B3),
         ),
@@ -421,7 +465,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor:
             isDark ? const Color(0xFF374151) : const Color(0xFF1D2939),
-        contentTextStyle: const TextStyle(fontSize: 14, color: Colors.white),
+        contentTextStyle: TextStyle(
+            fontFamily: fontFamily, fontSize: 14, color: Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         behavior: SnackBarBehavior.floating,
       ),
