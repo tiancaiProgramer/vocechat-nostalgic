@@ -10,6 +10,8 @@ import '../notifications/fcm_service.dart';
 import '../storage/account_store.dart';
 import '../utils/app_log.dart';
 import 'background_lifecycle.dart';
+import '../network/sse_client.dart';
+import '../../features/messages/domain/message_models.dart';
 import 'background_preferences.dart';
 
 // MethodChannel has one process-wide Dart handler. During a ProviderScope
@@ -119,6 +121,22 @@ final backgroundRuntimeProvider = Provider<void>((ref) {
       }
     });
   }
+
+  // No account identifiers, message content or credentials enter diagnostics.
+  void report(String phase) {
+    if (!isCurrent()) return;
+    unawaited(backgroundChannel.invokeMethod<void>(
+        'streamDiagnostic', {'phase': phase}).catchError((Object _) {}));
+  }
+
+  ref.listen(sseConnectionStatusProvider, (_, next) => report(next.name));
+  ref.listen(
+      sseEventsProvider,
+      (_, next) => next.whenData((event) {
+            if (event is ChatEventReady) report('ready');
+            if (event is ChatEventHeartbeat) report('heartbeat');
+            if (event is ChatEventChat) report('chat');
+          }));
 
   ref.listen(
       backgroundPreferencesProvider.select((s) => s.valueOrNull?.enabled),

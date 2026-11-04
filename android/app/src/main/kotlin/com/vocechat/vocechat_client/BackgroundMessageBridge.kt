@@ -23,6 +23,17 @@ class BackgroundMessageBridge(private val context: Context, messenger: BinaryMes
         channel.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "streamDiagnostic" -> {
+                        val phase = call.argument<String>("phase") ?: ""
+                        if (phase in setOf("idle", "connecting", "connected", "reconnecting",
+                                "disconnected", "ready", "heartbeat", "chat")) {
+                            val editor = prefs.edit().putString("streamPhase", phase)
+                            if (phase == "heartbeat") editor.putLong("lastHeartbeatAt", System.currentTimeMillis())
+                            editor.apply()
+                            android.util.Log.i("VoceBackground", "stream=$phase")
+                        }
+                        result.success(null)
+                    }
                     "fcmDiagnostic" -> {
                         val reason = call.argument<String>("reason") ?: ""
                         if (reason in listOf("token_ready", "token_timeout", "token_failed", "registration_failed",
@@ -93,6 +104,8 @@ class BackgroundMessageBridge(private val context: Context, messenger: BinaryMes
                         result.success(null)
                     }
                     "configureNotifications" -> {
+                        check(prefs.edit().putString("restore_session",
+                            call.argument<String>("session") ?: "").commit())
                         MessageNotificationRouter.configure(context, call.argument<String>("session") ?: "",
                             call.argument<List<String>>("muted"))
                         result.success(null)

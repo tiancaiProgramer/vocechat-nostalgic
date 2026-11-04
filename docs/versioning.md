@@ -4,11 +4,11 @@
 
 当前版本：
 
-- 对外显示和 Android `versionName`：`0.3.35-r11`。
-- 内部 Android `versionCode`：`3132`，继续沿用单调递增的构建号，以支持原签名覆盖升级。
-- Flutter `pubspec.yaml`：`version: 0.3.35-r11+3132`。
-- GitHub APK 文件名：`vocechat-nostalgic-0.3.35-r11-arm64.apk`。
+- 对外显示和 Android `versionName`：`0.3.35-r13`。
+- 内部 Android `versionCode`：`3134`，继续沿用单调递增的构建号，以支持原签名覆盖升级。
+- Flutter `pubspec.yaml`：`version: 0.3.35-r13+3134`。
+- GitHub APK 文件名：`vocechat-nostalgic-0.3.35-r13-arm64.apk`。
 
-下一次交付示例：`0.3.35-r12+3133`。对外说明以 `0.3.35-r12` 为版本名称，内部构建号用于升级识别。
+下一次交付示例：`0.3.35-r14+3135`。对外说明以 `0.3.35-r14` 为版本名称，内部构建号用于升级识别。
 
 签名和应用 ID 延续原设置。`r1` 包含此前 3120 的输入栏图标对齐、3121 的加号菜单排序，以及 3119 底座；更改版本名称不代表此前尚未验证的功能或已知网络问题已经解决。

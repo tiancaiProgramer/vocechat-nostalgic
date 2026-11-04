@@ -13,8 +13,10 @@ internal class RetainedEngineOwner<Engine : Any, Owner : Any>(
         private set
     private var owner: Owner? = null
 
+    fun ensure(create: () -> Engine): Engine = engine ?: create().also { engine = it }
+
     fun acquire(owner: Owner, create: () -> Engine): Engine {
-        val current = engine ?: create().also { engine = it }
+        val current = ensure(create)
         this.owner = owner
         return current
     }

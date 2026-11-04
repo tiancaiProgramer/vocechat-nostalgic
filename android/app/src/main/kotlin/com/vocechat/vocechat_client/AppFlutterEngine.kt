@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
 
 /** Owns the standalone engine; Activity and service callbacks run on main.
  * Play keeps FlutterActivity's normal, Activity-owned engine lifecycle.
@@ -52,6 +53,14 @@ internal object AppFlutterEngine {
         }
         Log.i(TAG, "attach activity=${System.identityHashCode(activity)} engine=${System.identityHashCode(resources.engine)}")
         return resources.engine
+    }
+
+    fun ensureBackground(context: Context) {
+        val resources = ownership.ensure { Resources(context.applicationContext, emptyArray()) }
+        if (!resources.engine.dartExecutor.isExecutingDart) {
+            resources.engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
+            Log.i(TAG, "background Dart started engine=${System.identityHashCode(resources.engine)}")
+        }
     }
 
     fun release(activity: MainActivity, changingConfigurations: Boolean) {

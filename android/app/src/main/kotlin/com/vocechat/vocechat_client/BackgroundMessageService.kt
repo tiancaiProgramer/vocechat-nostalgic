@@ -12,7 +12,7 @@ import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.FlutterEngine
 
 /** The service retains the SAME engine/connection as the UI, never a second login. */
-class BackgroundMessageService : Service() {
+open class BackgroundMessageService : Service() {
     companion object {
         const val CHANNEL = "background_connection"
         const val MESSAGES = "background_messages"
@@ -33,12 +33,12 @@ class BackgroundMessageService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Do not advertise message reception after process death without a live engine.
-        if (!BuildConfig.DIRECT_DISTRIBUTION_FEATURES || engine == null) {
+        val calling = intent?.getBooleanExtra("calling", false) == true && MainActivity.foreground
+        val restore = BackgroundRestoreReceiver.shouldRestore(this)
+        if (!BuildConfig.DIRECT_DISTRIBUTION_FEATURES || (!restore && !(calling && engine != null))) {
             stopSelf()
             return START_NOT_STICKY
         }
-        val calling = intent?.getBooleanExtra("calling", false) == true
         val open = PendingIntent.getActivity(this, 0, AppLaunchIntent.create(this),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, CHANNEL)
@@ -56,12 +56,20 @@ class BackgroundMessageService : Service() {
             if (Build.VERSION.SDK_INT >= 29) startForeground(ID, notification, types)
             else startForeground(ID, notification)
             running = true
+            // Promote immediately to meet the FGS deadline, then recreate the
+            // shared engine when Android restarts a killed process with null intent.
+            restoreEngine()
+            android.util.Log.i("VoceBackground", "started restore=$restore calling=$calling")
         } catch (error: RuntimeException) {
             running = false
+            android.util.Log.w("VoceBackground", "start failed: ${error.javaClass.simpleName}")
             stopSelf()
+            return START_NOT_STICKY
         }
-        return START_NOT_STICKY
+        return if (restore) START_STICKY else START_NOT_STICKY
     }
+
+    protected open fun restoreEngine() = AppFlutterEngine.ensureBackground(this)
 
     override fun onBind(intent: Intent?): IBinder? = null
 

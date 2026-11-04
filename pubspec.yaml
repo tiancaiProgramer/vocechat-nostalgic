@@ -2,7 +2,7 @@ name: vocechat_client
 description: "VoceChat cross-platform client"
 publish_to: 'none'
 
-version: 0.3.35-r11+3132
+version: 0.3.35-r13+3134
 
 environment:
   sdk: ^3.6.0

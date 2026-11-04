@@ -2,15 +2,23 @@
 
 新版 VoceChat 功能底座，保留旧版 Android 页面风格。
 
-当前版本：**0.3.35-r11**（内部构建号 3132）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
+当前版本：**0.3.35-r13**（内部构建号 3134）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
 
 后续对外版本使用 `-rN` 依次递增，内部构建号继续递增；见[版本命名规则](docs/versioning.md)。
 
 ## 安装
 
-从 [r11发行版](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.35-r11) 下载 ARM64 APK；[发布说明](docs/releases/0.3.35-r11.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
+从 [r13发行版](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.35-r13) 下载 ARM64 APK；[发布说明](docs/releases/0.3.35-r13.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
 
 此应用可与原版共存；升级已安装的怀旧版会保留应用数据。设备会话已被服务器拒绝时，需要在应用内重新登录一次。
+
+## 0.3.35-r13 更新（2026-11-04）
+
+- 修复开机、应用更新后的后台恢复，支持系统重建服务。
+- 消息状态调度独立于界面帧，修复未打开界面时服务已启动却离线、锁屏不通知的问题。
+- 继续保持FCM与后台消息模式互斥，关闭模式或退出登录后不自动恢复后台常驻。
+
+38项相关Flutter测试、26项Android测试通过，2项渠道条件用例跳过；已在小米Android 16验证真实重启、不打开应用、锁屏收到一次通知且对端在线。多小时待机和真实系统回收进程仍待实测，见[r13说明](docs/releases/0.3.35-r13.md)。升级后请正常打开应用一次以保存恢复状态。
 
 ## 0.3.35-r11 更新（2026-10-30）
 

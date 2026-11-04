@@ -88,6 +88,20 @@ class RetainedEngineOwnerTest {
         assertNotSame(oldEngine, fresh)
     }
 
+    @Test fun headlessRestoreAndLaterActivityShareExactlyOneEngine() {
+        val disposed = mutableListOf<Engine>()
+        val ownership = RetainedEngineOwner<Engine, Host> { disposed.add(it) }
+        val engine = ownership.ensure { Engine() }
+        assertSame(engine, ownership.ensure { error("Duplicate headless engine") })
+        val activity = Host()
+        assertSame(engine, ownership.acquire(activity) { error("Duplicate UI engine") })
+        ownership.releaseIfUnowned()
+        assertTrue(disposed.isEmpty())
+        ownership.release(activity, retain = true)
+        ownership.releaseIfUnowned()
+        assertEquals(listOf(engine), disposed)
+    }
+
     @Test fun failedCreationDoesNotRetainAHostOrBlockRetry() {
         val ownership = RetainedEngineOwner<Engine, Host> { error("Nothing to dispose") }
         val failed = Host()

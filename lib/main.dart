@@ -1,4 +1,7 @@
 import 'core/theme/app_text_scale.dart';
+import 'core/background/app_provider_scope.dart';
+import 'core/network/sse_lifecycle.dart';
+import 'features/messages/application/message_dispatcher.dart';
 import 'core/theme/font_family_provider.dart';
 import 'core/theme/system_font_provider.dart';
 import 'features/voice/application/voice_controller.dart';
@@ -25,7 +28,7 @@ void main() {
   runApp(
     AppRecoveryHost(
       controller: recovery,
-      builder: (_) => const ProviderScope(child: _AppBootstrap()),
+      builder: (_) => const AppProviderScope(child: _AppBootstrap()),
     ),
   );
 }
@@ -36,6 +39,12 @@ class _AppBootstrap extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(appStartupProvider);
+    // Mount the connection independently of HomeShell: a boot-restored engine
+    // has no Activity/surface, so navigation must not gate message reception.
+    ref.watch(messageDispatcherProvider);
+    ref.watch(sseTokenWatcherProvider);
+    ref.watch(sseConnectivityWatcherProvider);
+    ref.watch(sseLifecycleWatcherProvider);
     return const VoceChatApp();
   }
 }
