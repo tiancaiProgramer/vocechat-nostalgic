@@ -1,5 +1,5 @@
 data
 .env
 __pycache__
-test_server.py
+test_*.py
 README.md

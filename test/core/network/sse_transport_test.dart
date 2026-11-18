@@ -6,6 +6,64 @@ import 'package:vocechat_client/core/network/sse_client.dart';
 import 'package:vocechat_client/features/messages/domain/message_models.dart';
 
 void main() {
+  for (final fallback in [false, true]) {
+    test(
+      'revoked session revalidates after ${fallback ? "HTTP SSE" : "WebSocket"} 401',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          request.response.statusCode =
+              fallback && request.uri.path.endsWith('events_ws') ? 404 : 401;
+          await request.response.close();
+        });
+        var calls = 0;
+        final checked = Completer<void>();
+        late VoceSseClient client;
+        client = VoceSseClient(
+          baseUrl: 'http://127.0.0.1:${server.port}',
+          apiKey: 'revoked',
+          onUnauthorized: () async {
+            calls++;
+            client.dispose();
+            checked.complete();
+          },
+        );
+        final subscription = client.events().listen((_) {});
+        addTearDown(client.dispose);
+        addTearDown(subscription.cancel);
+        await checked.future.timeout(const Duration(seconds: 5));
+        expect(calls, 1);
+      },
+    );
+  }
+
+  test('kick immediately followed by socket close ends reconnects', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    var connections = 0;
+    server.listen((request) async {
+      connections++;
+      final socket = await WebSocketTransformer.upgrade(request);
+      socket.add('{"type":"kick","reason":"password_changed"}');
+      await socket.close();
+    });
+    final client = VoceSseClient(
+      baseUrl: 'http://127.0.0.1:${server.port}',
+      apiKey: 'revoked',
+    );
+    addTearDown(client.dispose);
+    final stream = client.events();
+    final keepAlive = stream.listen((_) {});
+    addTearDown(keepAlive.cancel);
+    final kick = await stream
+        .where((e) => e is ChatEventKick)
+        .first
+        .timeout(const Duration(seconds: 5));
+    expect((kick as ChatEventKick).reason, 'password_changed');
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    expect(connections, 1);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => HttpOverrides.global = null);
   test(

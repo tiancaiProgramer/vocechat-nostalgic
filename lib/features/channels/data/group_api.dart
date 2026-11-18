@@ -44,15 +44,23 @@ class GroupApi {
     return (resp.data['gid'] as num).toInt();
   }
 
-  /// Update channel name/description.
+  /// Fetch current server fields instead of trusting cached feature support.
+  Future<Map<String, dynamic>> getChannel(int gid) async {
+    final response = await _dio.get('/api/group/$gid');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Update channel details or the channel-wide auto-delete policy.
   Future<void> updateChannel(
     int gid, {
     String? name,
     String? description,
+    int? autoDeleteAfter,
   }) async {
     await _dio.put('/api/group/$gid', data: {
       if (name != null) 'name': name,
       if (description != null) 'description': description,
+      if (autoDeleteAfter != null) 'auto_delete_after': autoDeleteAfter,
     });
   }
 
@@ -70,10 +78,10 @@ class GroupApi {
     required bool isPublic,
     List<int> members = const [],
   }) async {
-    await _dio.post('/api/group/$gid/change_type', data: {
-      'is_public': isPublic,
-      'members': members,
-    });
+    await _dio.post(
+      '/api/group/$gid/change_type',
+      data: {'is_public': isPublic, 'members': members},
+    );
   }
 
   /// Add members to a private channel. Body is a raw JSON array of uids.

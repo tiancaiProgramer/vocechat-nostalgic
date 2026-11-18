@@ -65,7 +65,10 @@ void main() {
                           : null)
                       : request.method == 'POST'
                           ? 100
-                          : [],
+                          : cache.rows
+                              .where((m) => m.mid > 0)
+                              .map((m) => m.toJson())
+                              .toList(),
             ),
           );
         },

@@ -1012,6 +1012,28 @@ class AppL10nZh extends AppL10n {
   String get chatForwardedMessagePreview => '[转发的消息]';
 
   @override
+  String get chatAutoDelete1Month => '1 个月（30 天）';
+
+  @override
+  String get chatAutoDeleteWholeChannel => '整个频道';
+
+  @override
+  String get chatAutoDeleteChannelDescription => '自动删除所有成员在设置后发送的新消息。';
+
+  @override
+  String get chatAutoDeletePersonalDescription => '仅自动删除我发送的消息。';
+
+  @override
+  String get chatAutoDeletePolicyDescription =>
+      '频道规则对所有人生效；个人设置可让自己的消息更早删除。已有消息保留原来的到期时间。';
+
+  @override
+  String get chatAutoDeleteUnsupported => '服务端不支持该选项，请升级服务端。';
+
+  @override
+  String get chatAutoDeleteCheckingSupport => '正在检测服务端是否支持…';
+
+  @override
   String get chatAutoDeleteTitle => '自动删除消息';
 
   @override
@@ -1872,4 +1894,7 @@ class AppL10nZh extends AppL10n {
 
   @override
   String get appearanceSystemFontUnavailable => '暂时无法读取手机字体，已使用系统默认字体。';
+
+  @override
+  String get authPasswordChanged => '密码已修改，请重新登录。';
 }

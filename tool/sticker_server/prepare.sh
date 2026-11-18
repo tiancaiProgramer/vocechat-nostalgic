@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")"
 if ! command -v docker >/dev/null 2>&1; then
-  echo '找不到 docker，请在飞牛SSH终端内运行。' >&2
+  echo '找不到 docker，请在飞牛终端内运行。' >&2
   exit 1
 fi
 if ! docker inspect vocechat-1 >/dev/null 2>&1 || ! docker inspect nginx-proxy-manager >/dev/null 2>&1; then
@@ -49,14 +49,32 @@ else
   find data -type d -exec chmod 700 {} +
   find data -type f -exec chmod 600 {} +
 fi
-if ! docker network inspect vocechat-sticker-net >/dev/null 2>&1; then
-  docker network create vocechat-sticker-net >/dev/null
+vc_networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' vocechat-1)
+npm_networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' nginx-proxy-manager)
+configured_network=$(awk -F= '$1=="VC_DOCKER_NETWORK" {gsub(/\r/,"",$2); value=$2} END {print value}' .env)
+shared_network=${2:-$configured_network}
+if [ -z "$shared_network" ]; then
+  for candidate in $vc_networks; do
+    case "$candidate" in bridge|host|none) continue ;; esac
+    if printf '%s\n' "$npm_networks" | grep -Fxq -- "$candidate"; then
+      shared_network=$candidate
+      if [ "$candidate" = nas-services ]; then break; fi
+    fi
+  done
 fi
-for container in vocechat-1 nginx-proxy-manager; do
-  connected=$(docker inspect --format '{{if index .NetworkSettings.Networks "vocechat-sticker-net"}}yes{{end}}' "$container")
-  if [ "$connected" != yes ]; then
-    docker network connect vocechat-sticker-net "$container"
-  fi
-done
-echo '准备完成：现有VC/NPM已连接共享网络。'
-echo '下一步在当前目录执行 docker compose up -d --build，再按README配置NPM。'
+case "$shared_network" in
+  ''|bridge|host|none|*[!a-zA-Z0-9_.-]*)
+    echo '未找到VC和NPM共同使用的自定义Docker网络，请先让它们加入同一个网络。' >&2
+    exit 1 ;;
+esac
+if ! printf '%s\n' "$vc_networks" | grep -Fxq -- "$shared_network" ||
+   ! printf '%s\n' "$npm_networks" | grep -Fxq -- "$shared_network"; then
+  echo "VC和NPM尚未共同连接网络 ${shared_network}，请核对.env中的VC_DOCKER_NETWORK。" >&2
+  exit 1
+fi
+if [ "$shared_network" != "$configured_network" ]; then
+  # The last value wins in Compose .env files. This also upgrades old .env files.
+  printf '\nVC_DOCKER_NETWORK=%s\n' "$shared_network" >> .env
+fi
+echo "准备完成：表情服务将通过Compose加入 ${shared_network}。"
+echo '下一步执行 docker compose up -d --build，然后 sh check.sh。'

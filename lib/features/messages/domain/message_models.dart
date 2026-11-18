@@ -41,11 +41,7 @@ Map<String, dynamic> _messageDetailToJson(MessageDetail detail) {
       if (d.properties != null) 'properties': d.properties,
       if (d.expiresIn != null) 'expires_in': d.expiresIn,
     },
-    reaction: (d) => {
-      'type': 'reaction',
-      'mid': d.mid,
-      'detail': d.detail,
-    },
+    reaction: (d) => {'type': 'reaction', 'mid': d.mid, 'detail': d.detail},
     reply: (d) => {
       'type': 'reply',
       'mid': d.mid,
@@ -60,10 +56,7 @@ Map<String, dynamic> _messageDetailToJson(MessageDetail detail) {
 MessageDetail _messageDetailFromJson(Map<String, dynamic> json) =>
     MessageDetail.fromJson(json);
 Map<String, dynamic> _messageTargetToJson(MessageTarget target) {
-  return target.map(
-    user: (t) => {'uid': t.uid},
-    group: (t) => {'gid': t.gid},
-  );
+  return target.map(user: (t) => {'uid': t.uid}, group: (t) => {'gid': t.gid});
 }
 
 MessageTarget _messageTargetFromJson(Map<String, dynamic> json) =>
@@ -133,10 +126,7 @@ sealed class MessageDetail with _$MessageDetail {
         );
       default:
         // Treat unknown/command types as normal with empty content to avoid crashes.
-        return MessageDetail.normal(
-          contentType: 'text/plain',
-          content: '',
-        );
+        return MessageDetail.normal(contentType: 'text/plain', content: '');
     }
   }
 }
@@ -159,15 +149,9 @@ class ChatMessage with _$ChatMessage {
     @JsonKey(name: 'from_uid') required int fromUid,
     // Server serializes DateTime as i64 unix milliseconds, not ISO string.
     @JsonKey(name: 'created_at') required int createdAt,
-    @JsonKey(
-      fromJson: _messageTargetFromJson,
-      toJson: _messageTargetToJson,
-    )
+    @JsonKey(fromJson: _messageTargetFromJson, toJson: _messageTargetToJson)
     required MessageTarget target,
-    @JsonKey(
-      fromJson: _messageDetailFromJson,
-      toJson: _messageDetailToJson,
-    )
+    @JsonKey(fromJson: _messageDetailFromJson, toJson: _messageDetailToJson)
     required MessageDetail detail,
     // Client-derived: populated when an edit-reaction echo arrives for this
     // message. Never sent by the server on initial delivery; round-tripped
@@ -244,6 +228,10 @@ sealed class ChatEvent with _$ChatEvent {
 
   const factory ChatEvent.chat({required ChatMessage message}) = ChatEventChat;
 
+  /// The server deleted all messages up to this inclusive boundary.
+  const factory ChatEvent.messagesCleared({required int latestDeletedMid}) =
+      ChatEventMessagesCleared;
+
   const factory ChatEvent.kick({String? reason}) = ChatEventKick;
 
   const factory ChatEvent.usersSnapshot({
@@ -285,15 +273,11 @@ sealed class ChatEvent with _$ChatEvent {
   /// `admin_agora.rs`) but not currently wired up server-side — voice call
   /// discovery mostly relies on polling `/admin/agora/channel/:p/:s`
   /// instead. Handled here so a future server fix needs no client change.
-  const factory ChatEvent.userCalling({
-    required int target,
-    required int uid,
-  }) = ChatEventUserCalling;
+  const factory ChatEvent.userCalling({required int target, required int uid}) =
+      ChatEventUserCalling;
 
-  const factory ChatEvent.unknown({
-    required String type,
-    required String raw,
-  }) = ChatEventUnknown;
+  const factory ChatEvent.unknown({required String type, required String raw}) =
+      ChatEventUnknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,7 +295,22 @@ ChatEvent parseSseEvent(String eventType, String rawData) {
       case 'chat':
         final map = _decodeMap(rawData);
         if (map != null) {
+          // The server currently has only one command (clear). Its nested
+          // union serializes as {type: command}, with no inner discriminator.
+          // It is persisted and may be replayed to the clearing admin.
+          final detail = map['detail'];
+          if (detail is Map && detail['type'] == 'command') {
+            return ChatEvent.messagesCleared(
+              latestDeletedMid: (map['mid'] as num).toInt(),
+            );
+          }
           return ChatEvent.chat(message: ChatMessage.fromJson(map));
+        }
+      case 'message_cleared':
+        final map = _decodeMap(rawData);
+        final mid = map?['latest_deleted_mid'];
+        if (mid is num && mid >= 0) {
+          return ChatEvent.messagesCleared(latestDeletedMid: mid.toInt());
         }
       case 'kick':
         final decoded = _decodeMap(rawData) ?? {};

@@ -1539,6 +1539,7 @@ mixin _$ChatEvent {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -1558,6 +1559,7 @@ mixin _$ChatEvent {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1577,6 +1579,7 @@ mixin _$ChatEvent {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1597,6 +1600,7 @@ mixin _$ChatEvent {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -1617,6 +1621,7 @@ mixin _$ChatEvent {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -1635,6 +1640,7 @@ mixin _$ChatEvent {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -1715,6 +1721,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -1737,6 +1744,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1759,6 +1767,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1785,6 +1794,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -1808,6 +1818,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -1829,6 +1840,7 @@ class _$ChatEventReadyImpl implements ChatEventReady {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -1900,6 +1912,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -1922,6 +1935,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1944,6 +1958,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -1970,6 +1985,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -1993,6 +2009,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -2014,6 +2031,7 @@ class _$ChatEventConnectionOpenedImpl implements ChatEventConnectionOpened {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -2110,6 +2128,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -2132,6 +2151,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2154,6 +2174,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2180,6 +2201,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -2203,6 +2225,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -2224,6 +2247,7 @@ class _$ChatEventHeartbeatImpl implements ChatEventHeartbeat {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -2340,6 +2364,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -2362,6 +2387,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2384,6 +2410,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2410,6 +2437,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -2433,6 +2461,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -2454,6 +2483,7 @@ class _$ChatEventChatImpl implements ChatEventChat {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -2484,6 +2514,234 @@ abstract class ChatEventChat implements ChatEvent {
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$ChatEventChatImplCopyWith<_$ChatEventChatImpl> get copyWith =>
       throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$ChatEventMessagesClearedImplCopyWith<$Res> {
+  factory _$$ChatEventMessagesClearedImplCopyWith(
+          _$ChatEventMessagesClearedImpl value,
+          $Res Function(_$ChatEventMessagesClearedImpl) then) =
+      __$$ChatEventMessagesClearedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int latestDeletedMid});
+}
+
+/// @nodoc
+class __$$ChatEventMessagesClearedImplCopyWithImpl<$Res>
+    extends _$ChatEventCopyWithImpl<$Res, _$ChatEventMessagesClearedImpl>
+    implements _$$ChatEventMessagesClearedImplCopyWith<$Res> {
+  __$$ChatEventMessagesClearedImplCopyWithImpl(
+      _$ChatEventMessagesClearedImpl _value,
+      $Res Function(_$ChatEventMessagesClearedImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of ChatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? latestDeletedMid = null,
+  }) {
+    return _then(_$ChatEventMessagesClearedImpl(
+      latestDeletedMid: null == latestDeletedMid
+          ? _value.latestDeletedMid
+          : latestDeletedMid // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$ChatEventMessagesClearedImpl implements ChatEventMessagesCleared {
+  const _$ChatEventMessagesClearedImpl({required this.latestDeletedMid});
+
+  @override
+  final int latestDeletedMid;
+
+  @override
+  String toString() {
+    return 'ChatEvent.messagesCleared(latestDeletedMid: $latestDeletedMid)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatEventMessagesClearedImpl &&
+            (identical(other.latestDeletedMid, latestDeletedMid) ||
+                other.latestDeletedMid == latestDeletedMid));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, latestDeletedMid);
+
+  /// Create a copy of ChatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatEventMessagesClearedImplCopyWith<_$ChatEventMessagesClearedImpl>
+      get copyWith => __$$ChatEventMessagesClearedImplCopyWithImpl<
+          _$ChatEventMessagesClearedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() ready,
+    required TResult Function() connectionOpened,
+    required TResult Function(String? time) heartbeat,
+    required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
+    required TResult Function(String? reason) kick,
+    required TResult Function(List<Map<String, dynamic>> users, int version)
+        usersSnapshot,
+    required TResult Function(Map<String, dynamic> data) groupChanged,
+    required TResult Function(int gid, List<int> uid) userJoinedGroup,
+    required TResult Function(int gid, List<int> uid) userLeavedGroup,
+    required TResult Function(Map<String, dynamic> data) serverConfigChanged,
+    required TResult Function(Map<String, dynamic> data) userSettings,
+    required TResult Function(Map<String, dynamic> data) userSettingsChanged,
+    required TResult Function(int target, int uid) userCalling,
+    required TResult Function(String type, String raw) unknown,
+  }) {
+    return messagesCleared(latestDeletedMid);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? ready,
+    TResult? Function()? connectionOpened,
+    TResult? Function(String? time)? heartbeat,
+    TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
+    TResult? Function(String? reason)? kick,
+    TResult? Function(List<Map<String, dynamic>> users, int version)?
+        usersSnapshot,
+    TResult? Function(Map<String, dynamic> data)? groupChanged,
+    TResult? Function(int gid, List<int> uid)? userJoinedGroup,
+    TResult? Function(int gid, List<int> uid)? userLeavedGroup,
+    TResult? Function(Map<String, dynamic> data)? serverConfigChanged,
+    TResult? Function(Map<String, dynamic> data)? userSettings,
+    TResult? Function(Map<String, dynamic> data)? userSettingsChanged,
+    TResult? Function(int target, int uid)? userCalling,
+    TResult? Function(String type, String raw)? unknown,
+  }) {
+    return messagesCleared?.call(latestDeletedMid);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? ready,
+    TResult Function()? connectionOpened,
+    TResult Function(String? time)? heartbeat,
+    TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
+    TResult Function(String? reason)? kick,
+    TResult Function(List<Map<String, dynamic>> users, int version)?
+        usersSnapshot,
+    TResult Function(Map<String, dynamic> data)? groupChanged,
+    TResult Function(int gid, List<int> uid)? userJoinedGroup,
+    TResult Function(int gid, List<int> uid)? userLeavedGroup,
+    TResult Function(Map<String, dynamic> data)? serverConfigChanged,
+    TResult Function(Map<String, dynamic> data)? userSettings,
+    TResult Function(Map<String, dynamic> data)? userSettingsChanged,
+    TResult Function(int target, int uid)? userCalling,
+    TResult Function(String type, String raw)? unknown,
+    required TResult orElse(),
+  }) {
+    if (messagesCleared != null) {
+      return messagesCleared(latestDeletedMid);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(ChatEventReady value) ready,
+    required TResult Function(ChatEventConnectionOpened value) connectionOpened,
+    required TResult Function(ChatEventHeartbeat value) heartbeat,
+    required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
+    required TResult Function(ChatEventKick value) kick,
+    required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
+    required TResult Function(ChatEventGroupChanged value) groupChanged,
+    required TResult Function(ChatEventUserJoinedGroup value) userJoinedGroup,
+    required TResult Function(ChatEventUserLeavedGroup value) userLeavedGroup,
+    required TResult Function(ChatEventServerConfigChanged value)
+        serverConfigChanged,
+    required TResult Function(ChatEventUserSettings value) userSettings,
+    required TResult Function(ChatEventUserSettingsChanged value)
+        userSettingsChanged,
+    required TResult Function(ChatEventUserCalling value) userCalling,
+    required TResult Function(ChatEventUnknown value) unknown,
+  }) {
+    return messagesCleared(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(ChatEventReady value)? ready,
+    TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
+    TResult? Function(ChatEventHeartbeat value)? heartbeat,
+    TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
+    TResult? Function(ChatEventKick value)? kick,
+    TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
+    TResult? Function(ChatEventGroupChanged value)? groupChanged,
+    TResult? Function(ChatEventUserJoinedGroup value)? userJoinedGroup,
+    TResult? Function(ChatEventUserLeavedGroup value)? userLeavedGroup,
+    TResult? Function(ChatEventServerConfigChanged value)? serverConfigChanged,
+    TResult? Function(ChatEventUserSettings value)? userSettings,
+    TResult? Function(ChatEventUserSettingsChanged value)? userSettingsChanged,
+    TResult? Function(ChatEventUserCalling value)? userCalling,
+    TResult? Function(ChatEventUnknown value)? unknown,
+  }) {
+    return messagesCleared?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(ChatEventReady value)? ready,
+    TResult Function(ChatEventConnectionOpened value)? connectionOpened,
+    TResult Function(ChatEventHeartbeat value)? heartbeat,
+    TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
+    TResult Function(ChatEventKick value)? kick,
+    TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
+    TResult Function(ChatEventGroupChanged value)? groupChanged,
+    TResult Function(ChatEventUserJoinedGroup value)? userJoinedGroup,
+    TResult Function(ChatEventUserLeavedGroup value)? userLeavedGroup,
+    TResult Function(ChatEventServerConfigChanged value)? serverConfigChanged,
+    TResult Function(ChatEventUserSettings value)? userSettings,
+    TResult Function(ChatEventUserSettingsChanged value)? userSettingsChanged,
+    TResult Function(ChatEventUserCalling value)? userCalling,
+    TResult Function(ChatEventUnknown value)? unknown,
+    required TResult orElse(),
+  }) {
+    if (messagesCleared != null) {
+      return messagesCleared(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class ChatEventMessagesCleared implements ChatEvent {
+  const factory ChatEventMessagesCleared(
+      {required final int latestDeletedMid}) = _$ChatEventMessagesClearedImpl;
+
+  int get latestDeletedMid;
+
+  /// Create a copy of ChatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ChatEventMessagesClearedImplCopyWith<_$ChatEventMessagesClearedImpl>
+      get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
@@ -2558,6 +2816,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -2580,6 +2839,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2602,6 +2862,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2628,6 +2889,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -2651,6 +2913,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -2672,6 +2935,7 @@ class _$ChatEventKickImpl implements ChatEventKick {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -2795,6 +3059,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -2817,6 +3082,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2839,6 +3105,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -2865,6 +3132,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -2888,6 +3156,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -2909,6 +3178,7 @@ class _$ChatEventUsersSnapshotImpl implements ChatEventUsersSnapshot {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -3024,6 +3294,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -3046,6 +3317,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3068,6 +3340,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3094,6 +3367,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -3117,6 +3391,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -3138,6 +3413,7 @@ class _$ChatEventGroupChangedImpl implements ChatEventGroupChanged {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -3261,6 +3537,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -3283,6 +3560,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3305,6 +3583,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3331,6 +3610,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -3354,6 +3634,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -3375,6 +3656,7 @@ class _$ChatEventUserJoinedGroupImpl implements ChatEventUserJoinedGroup {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -3500,6 +3782,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -3522,6 +3805,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3544,6 +3828,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3570,6 +3855,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -3593,6 +3879,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -3614,6 +3901,7 @@ class _$ChatEventUserLeavedGroupImpl implements ChatEventUserLeavedGroup {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -3733,6 +4021,7 @@ class _$ChatEventServerConfigChangedImpl
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -3755,6 +4044,7 @@ class _$ChatEventServerConfigChangedImpl
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3777,6 +4067,7 @@ class _$ChatEventServerConfigChangedImpl
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -3803,6 +4094,7 @@ class _$ChatEventServerConfigChangedImpl
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -3826,6 +4118,7 @@ class _$ChatEventServerConfigChangedImpl
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -3847,6 +4140,7 @@ class _$ChatEventServerConfigChangedImpl
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -3962,6 +4256,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -3984,6 +4279,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4006,6 +4302,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4032,6 +4329,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -4055,6 +4353,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -4076,6 +4375,7 @@ class _$ChatEventUserSettingsImpl implements ChatEventUserSettings {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -4193,6 +4493,7 @@ class _$ChatEventUserSettingsChangedImpl
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -4215,6 +4516,7 @@ class _$ChatEventUserSettingsChangedImpl
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4237,6 +4539,7 @@ class _$ChatEventUserSettingsChangedImpl
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4263,6 +4566,7 @@ class _$ChatEventUserSettingsChangedImpl
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -4286,6 +4590,7 @@ class _$ChatEventUserSettingsChangedImpl
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -4307,6 +4612,7 @@ class _$ChatEventUserSettingsChangedImpl
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -4423,6 +4729,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -4445,6 +4752,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4467,6 +4775,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4493,6 +4802,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -4516,6 +4826,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -4537,6 +4848,7 @@ class _$ChatEventUserCallingImpl implements ChatEventUserCalling {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,
@@ -4652,6 +4964,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     required TResult Function() connectionOpened,
     required TResult Function(String? time) heartbeat,
     required TResult Function(ChatMessage message) chat,
+    required TResult Function(int latestDeletedMid) messagesCleared,
     required TResult Function(String? reason) kick,
     required TResult Function(List<Map<String, dynamic>> users, int version)
         usersSnapshot,
@@ -4674,6 +4987,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     TResult? Function()? connectionOpened,
     TResult? Function(String? time)? heartbeat,
     TResult? Function(ChatMessage message)? chat,
+    TResult? Function(int latestDeletedMid)? messagesCleared,
     TResult? Function(String? reason)? kick,
     TResult? Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4696,6 +5010,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     TResult Function()? connectionOpened,
     TResult Function(String? time)? heartbeat,
     TResult Function(ChatMessage message)? chat,
+    TResult Function(int latestDeletedMid)? messagesCleared,
     TResult Function(String? reason)? kick,
     TResult Function(List<Map<String, dynamic>> users, int version)?
         usersSnapshot,
@@ -4722,6 +5037,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     required TResult Function(ChatEventConnectionOpened value) connectionOpened,
     required TResult Function(ChatEventHeartbeat value) heartbeat,
     required TResult Function(ChatEventChat value) chat,
+    required TResult Function(ChatEventMessagesCleared value) messagesCleared,
     required TResult Function(ChatEventKick value) kick,
     required TResult Function(ChatEventUsersSnapshot value) usersSnapshot,
     required TResult Function(ChatEventGroupChanged value) groupChanged,
@@ -4745,6 +5061,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     TResult? Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult? Function(ChatEventHeartbeat value)? heartbeat,
     TResult? Function(ChatEventChat value)? chat,
+    TResult? Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult? Function(ChatEventKick value)? kick,
     TResult? Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult? Function(ChatEventGroupChanged value)? groupChanged,
@@ -4766,6 +5083,7 @@ class _$ChatEventUnknownImpl implements ChatEventUnknown {
     TResult Function(ChatEventConnectionOpened value)? connectionOpened,
     TResult Function(ChatEventHeartbeat value)? heartbeat,
     TResult Function(ChatEventChat value)? chat,
+    TResult Function(ChatEventMessagesCleared value)? messagesCleared,
     TResult Function(ChatEventKick value)? kick,
     TResult Function(ChatEventUsersSnapshot value)? usersSnapshot,
     TResult Function(ChatEventGroupChanged value)? groupChanged,

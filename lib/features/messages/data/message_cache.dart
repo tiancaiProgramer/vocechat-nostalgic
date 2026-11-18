@@ -64,11 +64,41 @@ class MessageCache {
   final Map<String, int> _appendSinceTrim = {};
   static const int _trimEvery = 50;
 
+  int _clearedThroughMid = -1;
+  int _conversationsRevision = 0;
+
+  bool _wasCleared(ChatMessage message) =>
+      message.mid > 0 && message.mid <= _clearedThroughMid;
+
+  /// Drop pending snapshots synchronously, before queued SSE writes finish.
+  void markMessagesCleared(int throughMid) {
+    if (throughMid > _clearedThroughMid) _clearedThroughMid = throughMid;
+    ++_conversationsRevision;
+    for (final key in _pendingWrites.keys.toList()) {
+      _pendingWrites[key] =
+          _pendingWrites[key]!.where((m) => !_wasCleared(m)).toList();
+    }
+  }
+
+  /// Preserve directories, preferences, stream cursor and post-clear messages.
+  Future<void> clearMessagesThrough(int throughMid) async {
+    markMessagesCleared(throughMid);
+    await _db.transaction((txn) async {
+      await txn.delete(
+        'messages',
+        where: 'mid > 0 AND mid <= ?',
+        whereArgs: [throughMid],
+      );
+      await txn.delete(
+        'meta',
+        where: 'key = ?',
+        whereArgs: [_kConversationsKey],
+      );
+    });
+  }
+
   static String _keyFor(MessageTarget target) {
-    return target.map(
-      user: (t) => 'u-${t.uid}',
-      group: (t) => 'g-${t.gid}',
-    );
+    return target.map(user: (t) => 'u-${t.uid}', group: (t) => 'g-${t.gid}');
   }
 
   /// Read recent messages for [target], newest first, up to [limit].
@@ -90,6 +120,7 @@ class MessageCache {
         final raw = row['payload'] as String;
         final map = jsonDecode(raw) as Map<String, dynamic>;
         final message = ChatMessage.fromJson(map);
+        if (_wasCleared(message)) continue;
         if (message.isExpiredAt(DateTime.now().millisecondsSinceEpoch)) {
           await deleteMid(target, message.mid);
         } else {
@@ -198,8 +229,21 @@ class MessageCache {
   }
 
   Future<void> writeConversations(List<Map<String, dynamic>> items) async {
+    final revision = _conversationsRevision;
     try {
-      final encoded = await _encodeInIsolate(items);
+      final filtered = items.map((item) {
+        final mid = item['lastMid'];
+        if (mid is! num || mid <= 0 || mid > _clearedThroughMid) return item;
+        return {
+          ...item,
+          'lastMid': null,
+          'lastAt': null,
+          'lastPreview': null,
+          'lastFromUid': null,
+        };
+      }).toList();
+      final encoded = await _encodeInIsolate(filtered);
+      if (revision != _conversationsRevision) return;
       await _writeMeta(_kConversationsKey, encoded);
     } catch (_) {
       // ignore — cache is best-effort
@@ -288,9 +332,7 @@ class MessageCache {
     if (raw == null || raw.isEmpty) return {};
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return decoded.map(
-        (k, v) => MapEntry(int.parse(k), (v as num).toInt()),
-      );
+      return decoded.map((k, v) => MapEntry(int.parse(k), (v as num).toInt()));
     } catch (_) {
       return {};
     }
@@ -355,7 +397,7 @@ class MessageCache {
   /// We only persist the head [_maxPerConversation] (newest first).
   void scheduleWrite(MessageTarget target, List<ChatMessage> messages) {
     final key = _keyFor(target);
-    _pendingWrites[key] = messages;
+    _pendingWrites[key] = messages.where((m) => !_wasCleared(m)).toList();
     _flushTimers[key]?.cancel();
     _flushTimers[key] = Timer(_flushDelay, () => _flush(key, target));
   }
@@ -375,6 +417,7 @@ class MessageCache {
   Future<void> appendOne(MessageTarget target, ChatMessage msg,
       {bool advanceCursor = false}) async {
     if (msg.mid <= 0) return;
+    if (_wasCleared(msg)) return;
     if (msg.detail is ReactionMessageDetail) return;
     final key = _keyFor(target);
     try {
@@ -384,16 +427,15 @@ class MessageCache {
               where: 'target_key = ? AND mid = ?', whereArgs: [key, msg.mid]);
         } else {
           await txn.insert(
-            'messages',
-            {
-              'target_key': key,
-              'mid': msg.mid,
-              'from_uid': msg.fromUid,
-              'created_at': msg.createdAt,
-              'payload': jsonEncode(msg.toJson()),
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+              'messages',
+              {
+                'target_key': key,
+                'mid': msg.mid,
+                'from_uid': msg.fromUid,
+                'created_at': msg.createdAt,
+                'payload': jsonEncode(msg.toJson()),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
         }
         // Never acknowledge a message before its row is safely on disk.
         if (advanceCursor) await _setCursor(txn, msg.mid);
@@ -473,22 +515,22 @@ class MessageCache {
     final batch = _db.batch();
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final m in trimmed) {
+      if (_wasCleared(m)) continue;
       if (m.isExpiredAt(now)) {
         batch.delete('messages',
             where: 'target_key = ? AND mid = ?', whereArgs: [key, m.mid]);
         continue;
       }
       batch.insert(
-        'messages',
-        {
-          'target_key': key,
-          'mid': m.mid,
-          'from_uid': m.fromUid,
-          'created_at': m.createdAt,
-          'payload': jsonEncode(m.toJson()),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+          'messages',
+          {
+            'target_key': key,
+            'mid': m.mid,
+            'from_uid': m.fromUid,
+            'created_at': m.createdAt,
+            'payload': jsonEncode(m.toJson()),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
 
@@ -564,6 +606,7 @@ class MessageCache {
   /// in-memory writes are dropped first so a debounced flush can't repopulate
   /// the tables right after we empty them.
   Future<void> clearAll() async {
+    ++_conversationsRevision;
     for (final t in _flushTimers.values) {
       t.cancel();
     }

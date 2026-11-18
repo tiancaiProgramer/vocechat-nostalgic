@@ -13,6 +13,7 @@ import '../../../core/i18n/locale_provider.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/media_cache.dart';
 import '../../../core/storage/server_store.dart';
+import '../../../core/storage/account_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/safe_text.dart';
@@ -23,6 +24,9 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/account_switcher_sheet.dart';
 import '../../channels/application/conversation_providers.dart';
 import '../../messages/data/message_cache.dart';
+import '../../messages/application/chat_controller.dart';
+import '../../messages/application/message_dispatcher.dart';
+import '../../messages/application/reactions_provider.dart';
 import '../application/app_info_provider.dart';
 import '../application/server_version_provider.dart';
 import '../data/user_api.dart';
@@ -768,6 +772,8 @@ class _MyAccountPaneState extends ConsumerState<_MyAccountPane> {
   }
 
   Future<void> _changePassword() async {
+    final accountId =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
     final l = AppL10n.of(context);
     final formKey = GlobalKey<FormState>();
     final oldCtrl = TextEditingController();
@@ -846,9 +852,15 @@ class _MyAccountPaneState extends ConsumerState<_MyAccountPane> {
       await ref
           .read(userApiProvider)
           .changePassword(oldPassword: oldCtrl.text, newPassword: newCtrl.text);
-      _showSuccess(l.accountPasswordChanged);
+      if (!mounted ||
+          ref.read(accountStoreProvider).valueOrNull?.currentAccountId !=
+              accountId) return;
+      ref.read(kickReasonProvider.notifier).set('password_changed');
+      await ref
+          .read(authControllerProvider.notifier)
+          .logout(notifyServer: false);
     } catch (e) {
-      _showError(e);
+      if (mounted) _showError(e);
     }
   }
 
@@ -1392,13 +1404,14 @@ class _StoragePaneState extends ConsumerState<_StoragePane> {
       // SQLite message + directory snapshot cache.
       final cache = await ref.read(messageCacheProvider.future);
       await cache.clearAll();
+      // Chat controllers are keepAlive and otherwise retain text in memory.
+      ref.invalidate(chatControllerProvider);
+      ref.invalidate(reactionsProvider);
+      ref.invalidate(conversationsProvider);
       // Decoded images plus persistent image/video/streamed-audio files.
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
       await MediaCache.clear();
-      // Rebuild the conversation list from the now-empty cache; it falls back
-      // to a network refresh (see Conversations.build no-cache path).
-      ref.invalidate(conversationsProvider);
       // Recompute the storage readout from the now-empty caches.
       ref.invalidate(cacheUsageBytesProvider);
     } finally {

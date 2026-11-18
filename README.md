@@ -2,15 +2,27 @@
 
 新版 VoceChat 功能底座，保留旧版 Android 页面风格。
 
-当前版本：**0.3.35-r13**（内部构建号 3134）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
+当前版本：**0.3.35-r14**（内部构建号 3135）。Android 应用 ID：`com.privoce.vocechatclient.legacyui`。
 
 后续对外版本使用 `-rN` 依次递增，内部构建号继续递增；见[版本命名规则](docs/versioning.md)。
 
 ## 安装
 
-从 [r13发行版](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.35-r13) 下载 ARM64 APK；[发布说明](docs/releases/0.3.35-r13.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
+从 [r14发行版](https://github.com/tiancaiProgramer/vocechat-nostalgic/releases/tag/v0.3.35-r14) 下载 ARM64 APK；[发布说明](docs/releases/0.3.35-r14.md)列明已验证、未测试和已知问题。支持 Android 7.0 及以上版本。
 
 此应用可与原版共存；升级已安装的怀旧版会保留应用数据。设备会话已被服务器拒绝时，需要在应用内重新登录一次。
+
+## 0.3.35-r14 更新（2026-11-18）
+
+- 新增 140% 字号、30 天自动删除，以及支持服务器上的群聊统一自动删除策略。
+- 自动删除消息改用小钟图标，点击查看剩余时间。
+- 完善修改密码后的会话失效处理，同步跨端清空的聊天历史、会话预览和本地缓存。
+- 按消息边界清理历史，保留正在发送的消息和文件任务。
+- 精简收藏表情 Docker 部署，自动复用 VC/NPM 已有共享网络，由 Compose 固定接入；新增连通性检查。
+
+Flutter 完整回归 857 项通过、5 项条件用例跳过。已用原签名保留数据安装到小米 MIX Fold 3，核对账号、历史、系统字体及本机收藏保留。真实跨端新功能、长时间待机与推送送达等范围见[r14说明](docs/releases/0.3.35-r14.md)。
+
+收藏表情云同步可下载发布页独立附件 `vocechat-stickers-docker.zip`，按[部署说明](tool/sticker_server/README.md)操作。
 
 ## 0.3.35-r13 更新（2026-11-04）
 

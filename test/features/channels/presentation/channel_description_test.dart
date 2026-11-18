@@ -44,8 +44,12 @@ class _Api extends GroupApi {
   String? savedName;
   String? savedDescription;
   @override
-  Future<void> updateChannel(int gid,
-      {String? name, String? description}) async {
+  Future<void> updateChannel(
+    int gid, {
+    String? name,
+    String? description,
+    int? autoDeleteAfter,
+  }) async {
     savedName = name;
     savedDescription = description;
   }

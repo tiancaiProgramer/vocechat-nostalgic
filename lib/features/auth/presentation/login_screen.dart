@@ -178,6 +178,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         final text = switch (kickReason) {
           'login_from_other_device' => l.authKickedFromOtherDevice,
           'delete_user' => l.authAccountDeleted,
+          'password_changed' => l.authPasswordChanged,
           _ => l.authSessionEnded,
         };
         ScaffoldMessenger.of(

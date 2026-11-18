@@ -6,14 +6,14 @@ services:
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
-      VC_UPSTREAM: "http://vocechat-1:3000"
+      VC_UPSTREAM: "${VC_UPSTREAM:-http://vocechat-1:3000}"
       VC_PUBLIC_URL: "${VC_PUBLIC_URL:?请在.env内填写VC的完整外部地址}"
       MAX_ITEMS: "512"
       QUOTA_MIB: "256"
     volumes:
       - ./data:/data
     networks:
-      - vocechat-sticker-net
+      - vc-network
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -28,5 +28,6 @@ services:
         max-file: "2"
 
 networks:
-  vocechat-sticker-net:
+  vc-network:
     external: true
+    name: "${VC_DOCKER_NETWORK:-nas-services}"

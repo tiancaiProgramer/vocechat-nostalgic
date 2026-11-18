@@ -1026,6 +1026,30 @@ class AppL10nKo extends AppL10n {
   String get chatForwardedMessagePreview => '[전달된 메시지]';
 
   @override
+  String get chatAutoDelete1Month => '1개월 (30일)';
+
+  @override
+  String get chatAutoDeleteWholeChannel => '전체 채널';
+
+  @override
+  String get chatAutoDeleteChannelDescription =>
+      '모든 발신자의 새 메시지를 선택한 시간 후 자동 삭제합니다.';
+
+  @override
+  String get chatAutoDeletePersonalDescription =>
+      '내가 보낸 메시지만 선택한 시간 후 자동 삭제합니다.';
+
+  @override
+  String get chatAutoDeletePolicyDescription =>
+      '채널 제한은 모두에게 적용됩니다. 개인 설정으로 내 메시지를 더 빨리 삭제할 수 있습니다. 기존 메시지의 만료 시간은 유지됩니다.';
+
+  @override
+  String get chatAutoDeleteUnsupported => '서버에서 이 옵션을 지원하지 않습니다. 서버를 업그레이드하세요.';
+
+  @override
+  String get chatAutoDeleteCheckingSupport => '서버 지원 확인 중…';
+
+  @override
   String get chatAutoDeleteTitle => '메시지 자동 삭제';
 
   @override
@@ -1960,4 +1984,7 @@ class AppL10nKo extends AppL10n {
   @override
   String get appearanceSystemFontUnavailable =>
       '휴대전화 글꼴을 읽을 수 없어 시스템 기본 글꼴을 사용합니다.';
+
+  @override
+  String get authPasswordChanged => '비밀번호가 변경되었습니다. 다시 로그인해 주세요.';
 }

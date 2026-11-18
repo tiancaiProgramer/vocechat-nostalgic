@@ -11,6 +11,7 @@ import '../../messages/data/message_api.dart';
 import '../../messages/data/message_cache.dart';
 import '../../messages/application/read_index_provider.dart';
 import '../../messages/domain/message_models.dart';
+import '../../messages/domain/history_reconciliation.dart';
 
 part 'conversation_providers.g.dart';
 
@@ -205,6 +206,7 @@ class ConversationsRefreshing extends _$ConversationsRefreshing {
 @Riverpod(keepAlive: true)
 class Conversations extends _$Conversations {
   MessageCache? _cache;
+  int _generation = 0;
 
   /// Pending SSE-driven patches keyed by conversation. We coalesce bursts
   /// (e.g. SSE replay on reconnect) into a single state update per frame
@@ -230,6 +232,16 @@ class Conversations extends _$Conversations {
 
   @override
   Future<List<ConversationItem>> build() async {
+    final generation = ++_generation;
+    _refreshInFlight = null;
+    _pendingPatches.clear();
+    _persistTimer?.cancel();
+    ref.onDispose(() {
+      ++_generation;
+      _persistTimer?.cancel();
+      _pendingPersistItems = null;
+      _pendingPersistCache = null;
+    });
     // This notifier can be rebuilt mid-refresh (server switch invalidates
     // messageCacheProvider; "clear cache" invalidates us directly). The old
     // instance's `finally` can no longer touch providers through its dead
@@ -240,11 +252,13 @@ class Conversations extends _$Conversations {
     Future.microtask(() => _setRefreshing(false));
     bootLog('20 Conversations.build: await messageCacheProvider');
     final cache = await ref.watch(messageCacheProvider.future);
+    if (generation != _generation) return const [];
     _cache = cache;
 
     // Step 1: paint from disk.
     bootLog('21 Conversations.build: readConversations from disk');
     final cachedRaw = await cache.readConversations();
+    if (generation != _generation) return const [];
     List<ConversationItem>? cached;
     if (cachedRaw != null && cachedRaw.isNotEmpty) {
       cached = cachedRaw
@@ -257,7 +271,7 @@ class Conversations extends _$Conversations {
       bootLog(
           '22 Conversations.build: returning ${cached.length} cached items');
       // Schedule refresh, return cached state.
-      Future.microtask(() => _refreshFromNetwork(cache));
+      _scheduleRefresh(cache);
       // Apply any SSE patches that arrived while we were reading from disk.
       Future.microtask(_drainPendingPatches);
       return _sorted(cached);
@@ -270,6 +284,7 @@ class Conversations extends _$Conversations {
     // multi-second freeze into a sub-second paint.
     bootLog('23 Conversations.build: no cache, awaiting _fetchBaseRoster');
     final base = await _fetchBaseRoster();
+    if (generation != _generation) return const [];
     bootLog(
         '24 Conversations.build: _fetchBaseRoster returned ${base.length} items');
     if (base.isNotEmpty) {
@@ -283,6 +298,7 @@ class Conversations extends _$Conversations {
       // connection pool and starve the basic UI render. A short delay lets
       // the chat list paint first, then enrichment streams in.
       Future.delayed(const Duration(milliseconds: 50), () {
+        if (generation != _generation) return;
         _enrichPreviews(cache, base);
       });
     }
@@ -294,8 +310,10 @@ class Conversations extends _$Conversations {
   /// Public: ask the notifier to re-pull the list from the network without
   /// dropping the current state.
   Future<void> refresh() async {
+    final generation = _generation;
     final MessageCache cache =
         _cache ?? await ref.read(messageCacheProvider.future);
+    if (generation != _generation) return;
     _cache = cache;
     await _refreshFromNetwork(cache);
   }
@@ -332,11 +350,19 @@ class Conversations extends _$Conversations {
     // flapping the refreshing capsule.
     final inFlight = _refreshInFlight;
     if (inFlight != null) return inFlight;
+    final generation = _generation;
     final run = _doRefreshFromNetwork(cache).whenComplete(() {
-      _refreshInFlight = null;
+      if (generation == _generation) _refreshInFlight = null;
     });
     _refreshInFlight = run;
     return run;
+  }
+
+  void _scheduleRefresh(MessageCache cache) {
+    final generation = _generation;
+    Future.microtask(() {
+      if (generation == _generation) _refreshFromNetwork(cache);
+    });
   }
 
   /// Set the shared "refresh in flight" flag, tolerating a disposed ref.
@@ -352,10 +378,12 @@ class Conversations extends _$Conversations {
   }
 
   Future<void> _doRefreshFromNetwork(MessageCache cache) async {
+    final generation = _generation;
     _setRefreshing(true);
     try {
       final revision = _rosterRevision;
       final base = await _fetchBaseRoster();
+      if (generation != _generation) return;
       if (revision != _rosterRevision) return;
       if (base.isEmpty) return;
       // Merge roster with current state, preserving existing previews while
@@ -392,7 +420,7 @@ class Conversations extends _$Conversations {
     } catch (_) {
       // ignore — cached state stays valid
     } finally {
-      _setRefreshing(false);
+      if (generation == _generation) _setRefreshing(false);
     }
   }
 
@@ -439,112 +467,105 @@ class Conversations extends _$Conversations {
     return base;
   }
 
-  /// Per-conversation preview enrichment — fans out getHistory(limit:1) with
-  /// a bounded concurrency window and batches state updates so the UI gets
-  /// "drip" updates instead of one big rebuild at the end. Runs in the
-  /// background; never blocks first paint.
+  /// Validate cached history on refresh, including missed clear broadcasts.
+  /// Keep cached edited content when its mid still exists on the server.
   Future<void> _enrichPreviews(
       MessageCache cache, List<ConversationItem> base) async {
     if (base.isEmpty) return;
+    final generation = _generation;
     final api = ref.read(messageApiProvider);
-
-    // Tunable: 3 keeps a phone's network + CPU comfortable. The previous
-    // code used 4; on low-end devices 3 is a better default because each
-    // response triggers a main-isolate JSON decode by dio.
-    const int kHistoryConcurrency = 3;
-
-    // Batched flushes: collect enrichments in a buffer and emit at most one
-    // state update per ~120ms so we don't rebuild the list per response.
-    final Map<ConversationKey, ConversationItem> pending = {};
+    const historyLimit = 20;
+    final pending = <ConversationKey, ConversationItem>{};
+    final requestBoundaries = <ConversationKey, int>{};
     Timer? flushTimer;
 
-    void schedule() {
-      if (flushTimer != null) return;
-      flushTimer = Timer(const Duration(milliseconds: 120), () {
-        flushTimer = null;
-        if (pending.isEmpty) return;
-        final current = state.valueOrNull;
-        if (current == null) return;
-        final byKey = {for (final c in current) c.key: c};
-        for (final entry in pending.entries) {
-          byKey[entry.key] = entry.value;
+    void flush() {
+      flushTimer?.cancel();
+      flushTimer = null;
+      if (generation != _generation || pending.isEmpty) return;
+      final current = state.valueOrNull;
+      if (current == null) return;
+      final byKey = {for (final c in current) c.key: c};
+      for (final entry in pending.entries) {
+        final currentMid = byKey[entry.key]?.lastMid ?? 0;
+        // A live message delivered during HTTP must win over an older page,
+        // including an empty response from just before the message was sent.
+        if (currentMid > (requestBoundaries[entry.key] ?? 0) &&
+            currentMid > (entry.value.lastMid ?? 0)) {
+          continue;
         }
-        pending.clear();
-        final next = byKey.values.toList();
-        final sorted = _sorted(next);
-        state = AsyncData(sorted);
-        _persist(cache, sorted);
-      });
+        byKey[entry.key] = entry.value;
+      }
+      pending.clear();
+      final sorted = _sorted(byKey.values.toList());
+      state = AsyncData(sorted);
+      _persist(cache, sorted);
     }
 
     int idx = 0;
     Future<void> worker() async {
-      while (true) {
-        final mine = idx;
-        if (mine >= base.length) return;
-        idx++;
-        final item = base[mine];
+      while (generation == _generation && idx < base.length) {
+        final item = base[idx++];
         final target = switch (item.key) {
           GroupConversationKey(gid: final gid) => MessageTarget.group(gid: gid),
           UserConversationKey(uid: final uid) => MessageTarget.user(uid: uid),
         };
         try {
-          // Cache-first: the SQLite cache is the SAME reaction-free,
-          // edit-overlaid store the chat screen (ChatController) reads back,
-          // so sourcing the preview from it makes the two views converge by
-          // construction. `read` is newest-first and never contains reaction
-          // rows (MessageCache.appendOne rejects them), so `.first` is the
-          // real head message.
-          ChatMessage? last;
-          final cached = await cache.read(target, limit: 1);
-          if (cached.isNotEmpty) {
-            last = cached.first;
-          } else {
-            // Cold start / never-opened conversation: cache is legitimately
-            // empty because enrichment runs before any chat is opened. Fall
-            // back to the network, but fetch a small window and drop reaction
-            // sidecars so a trailing like/edit/delete can't become the
-            // preview (getHistory returns them unfiltered, newest-first).
-            final msgs = await api.getHistory(target, limit: 20);
-            for (final m in msgs) {
-              if (m.detail is ReactionMessageDetail) continue;
-              last = m;
-              break;
-            }
+          final cached = await cache.read(target);
+          if (generation != _generation) return;
+          final throughMid = cached.fold<int>(
+            0,
+            (mid, m) => m.mid > mid ? m.mid : mid,
+          );
+          requestBoundaries[item.key] = state.valueOrNull
+                  ?.where((c) => c.key == item.key)
+                  .firstOrNull
+                  ?.lastMid ??
+              0;
+          final history = await api.getHistory(target, limit: historyLimit);
+          if (generation != _generation) return;
+          final missing = missingHistoryMids(
+            cached,
+            history,
+            limit: historyLimit,
+            throughMid: throughMid,
+          );
+          for (final mid in missing) {
+            await cache.deleteMid(target, mid);
+            if (generation != _generation) return;
           }
-          if (last != null) {
-            pending[item.key] = item.copyWith(
-              lastMid: last.mid,
-              lastAt: last.createdAt,
-              lastPreview: _previewFor(last),
-              lastFromUid: last.fromUid,
-            );
-            schedule();
-          }
+          final serverLast = history
+              .where((m) => m.detail is! ReactionMessageDetail)
+              .firstOrNull;
+          final cachedLast = cached
+              .where((m) => m.mid > 0 && !missing.contains(m.mid))
+              .firstOrNull;
+          final last = serverLast == null
+              ? cachedLast
+              : cached.where((m) => m.mid == serverLast.mid).firstOrNull ??
+                  serverLast;
+          // Reconstruct empty previews: copyWith deliberately retains nulls.
+          pending[item.key] = ConversationItem(
+            key: item.key,
+            name: item.name,
+            isChannel: item.isChannel,
+            lastMid: last?.mid,
+            lastAt: last?.createdAt,
+            lastPreview: last == null ? null : _previewFor(last),
+            lastFromUid: last?.fromUid,
+          );
+          flushTimer ??= Timer(const Duration(milliseconds: 120), flush);
         } on DioException {
-          // keep the un-enriched entry
+          // A failed request says nothing about server history; keep cache.
         }
       }
     }
 
-    await Future.wait(
-      List.generate(kHistoryConcurrency, (_) => worker()),
-    );
-
-    // Final flush: cancel any pending timer and apply the leftover batch
-    // synchronously so the persisted state matches what's on screen.
-    flushTimer?.cancel();
-    if (pending.isNotEmpty) {
-      final current = state.valueOrNull;
-      if (current != null) {
-        final byKey = {for (final c in current) c.key: c};
-        for (final entry in pending.entries) {
-          byKey[entry.key] = entry.value;
-        }
-        final sorted = _sorted(byKey.values.toList());
-        state = AsyncData(sorted);
-        _persist(cache, sorted);
-      }
+    try {
+      await Future.wait(List.generate(3, (_) => worker()));
+    } finally {
+      flush();
+      flushTimer?.cancel();
     }
   }
 
@@ -680,7 +701,7 @@ class Conversations extends _$Conversations {
       // for a fresh roster — non-blocking.
       final c = _cache;
       if (c != null) {
-        Future.microtask(() => _refreshFromNetwork(c));
+        _scheduleRefresh(c);
       }
     }
   }
@@ -742,7 +763,7 @@ class Conversations extends _$Conversations {
     // last message via getHistory(limit:1). Non-blocking.
     final cache = _cache;
     if (cache == null) return;
-    Future.microtask(() => _refreshFromNetwork(cache));
+    _scheduleRefresh(cache);
   }
 
   ConversationKey _conversationKeyFor(MessageTarget target, int fromUid) {

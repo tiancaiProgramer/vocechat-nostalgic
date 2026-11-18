@@ -20,6 +20,8 @@ import '../data/attachment_preparer.dart';
 import '../data/disk_attachment.dart';
 import '../data/message_cache.dart';
 import '../domain/message_models.dart';
+import '../domain/history_reconciliation.dart';
+import '../../contacts/application/user_directory_provider.dart';
 import '../domain/message_status.dart';
 
 part 'chat_controller.g.dart';
@@ -38,6 +40,7 @@ class ChatController extends _$ChatController {
   bool _refreshAfterBuild = false;
   int? _recoveryFloorMid;
   final Set<int> _deletedMids = {};
+  int _clearedThroughMid = -1;
   bool _hasMore = true;
   int? _historyBeforeMid;
   int _generation = 0;
@@ -121,7 +124,18 @@ class ChatController extends _$ChatController {
     final settings = ref.read(burnAfterReadProvider);
     final seconds = target.map(
       user: (t) => settings.userExpiresIn(t.uid),
-      group: (t) => settings.groupExpiresIn(t.gid),
+      group: (t) {
+        final personal = settings.groupExpiresIn(t.gid);
+        final channel = ref
+                .read(groupDirectoryProvider)
+                .valueOrNull?[t.gid]
+                ?.autoDeleteAfter ??
+            0;
+        if (personal > 0 && channel > 0) {
+          return personal < channel ? personal : channel;
+        }
+        return personal > 0 ? personal : channel;
+      },
     );
     return seconds > 0 ? seconds : null;
   }
@@ -251,7 +265,7 @@ class ChatController extends _$ChatController {
   void applyIncomingMessage(ChatMessage msg) {
     // Reactions are sidecar events on existing messages, not their own row.
     // They're handled by MessageDispatcher → ReactionsNotifier.
-    if (msg.detail is ReactionMessageDetail) return;
+    if (msg.detail is ReactionMessageDetail || (msg.mid > 0 && msg.mid <= _clearedThroughMid)) return;
 
     final currentUid = _currentUid();
 
@@ -320,7 +334,7 @@ class ChatController extends _$ChatController {
     // events share the same deduplication and optimistic confirmation rules.
     final updated = List<ChatMessage>.from(current);
     for (final m in batch) {
-      if (m.detail is ReactionMessageDetail || _deletedMids.contains(m.mid)) {
+      if (m.detail is ReactionMessageDetail || _deletedMids.contains(m.mid) || (m.mid > 0 && m.mid <= _clearedThroughMid)) {
         continue;
       }
       final existingIndex = updated.indexWhere((row) => row.mid == m.mid);
@@ -436,6 +450,7 @@ class ChatController extends _$ChatController {
     _refreshAfterBuild = false;
     _recoveryFloorMid = null;
     _deletedMids.clear();
+    _clearedThroughMid = -1;
     _hasMore = true;
     _historyBeforeMid = null;
     // The cache dependency changes when switching accounts. Previous rows
@@ -474,6 +489,10 @@ class ChatController extends _$ChatController {
     // Subscribe to SSE for live updates.
     ref.listen(sseEventsProvider, (_, next) {
       next.whenData((event) {
+        if (event is ChatEventMessagesCleared) {
+          _clearHistoryThrough(event.latestDeletedMid);
+          return;
+        }
         if (ref.read(androidBackgroundedProvider)) return;
         if (event is ChatEventConnectionOpened) {
           _recoveryFloorMid = _recentHistoryFloor(_messages);
@@ -515,7 +534,7 @@ class ChatController extends _$ChatController {
       final drained = _drainPending(cached);
       _recoveryFloorMid ??= _recentHistoryFloor(cached);
       _publish(drained);
-      unawaited(_backgroundRefresh(cache, recoverGap: _refreshAfterBuild));
+      unawaited(_backgroundRefresh(cache, recoverGap: true));
       _refreshAfterBuild = false;
       // Persist restored anchors and remove filtered rows from the snapshot.
       if (!listEquals(cachedRaw, _messages)) {
@@ -584,10 +603,38 @@ class ChatController extends _$ChatController {
     int? beforeMid;
     try {
       while (generation == _generation) {
+        final known = _messages ?? const <ChatMessage>[];
+        final throughMid = known.fold<int>(
+          0,
+          (mid, m) => m.mid > mid ? m.mid : mid,
+        );
         final freshRaw = await ref
             .read(messageApiProvider)
             .getHistory(target, beforeMid: beforeMid, limit: _initialLimit);
-        if (generation != _generation || freshRaw.isEmpty) return;
+        if (generation != _generation) return;
+        final missing = missingHistoryMids(
+          known,
+          freshRaw,
+          limit: _initialLimit,
+          throughMid: throughMid,
+          beforeMid: beforeMid,
+        );
+        // Only a successful response is authoritative. Network errors keep
+        // offline history; empty/short pages remove records deleted offline.
+        for (final mid in missing) {
+          await _cache?.deleteMid(target, mid);
+          if (generation != _generation) return;
+        }
+        if (missing.isNotEmpty) {
+          _deletedMids.addAll(missing);
+          _publish(
+            (_messages ?? const <ChatMessage>[])
+                .where((m) => !missing.contains(m.mid))
+                .toList(),
+          );
+          _persist();
+        }
+        if (freshRaw.isEmpty) return;
         final fresh = freshRaw
             .where((m) => m.detail is! ReactionMessageDetail)
             .toList(growable: false);
@@ -864,6 +911,18 @@ class ChatController extends _$ChatController {
     _publish(next);
     _persist();
     _cache?.deleteMid(target, tempMid);
+  }
+
+  void _clearHistoryThrough(int throughMid) {
+    if (throughMid <= _clearedThroughMid) return;
+    _clearedThroughMid = throughMid;
+    bool cleared(ChatMessage message) => message.mid > 0 && message.mid <= throughMid;
+    _pendingIncoming.removeWhere(cleared);
+    _pendingApply.removeWhere(cleared);
+    final current = _messages;
+    if (current == null) return;
+    _publish(current.where((message) => !cleared(message)).toList());
+    _persist();
   }
 
   void _persist() {

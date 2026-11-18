@@ -14,6 +14,22 @@ void main() {
     await Future<void>.delayed(Duration.zero);
   }
 
+  test(
+    '140 percent is appended and persisted without changing old steps',
+    () async {
+      expect(fontSizeScales.take(7), [0.85, 0.9, 0.95, 1.0, 1.1, 1.2, 1.3]);
+      final first = ProviderContainer();
+      addTearDown(first.dispose);
+      first.read(fontSizeProvider.notifier).setStep(7);
+      await first.read(fontSizeProvider.notifier).save();
+      final restored = ProviderContainer();
+      addTearDown(restored.dispose);
+      restored.read(fontSizeProvider);
+      await load();
+      expect(fontSizeScales[restored.read(fontSizeProvider)], 1.4);
+    },
+  );
+
   test('restores the saved size in a fresh provider container', () async {
     final first = ProviderContainer();
     addTearDown(first.dispose);

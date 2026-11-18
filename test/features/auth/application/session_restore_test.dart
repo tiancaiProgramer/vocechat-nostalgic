@@ -7,11 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vocechat_client/core/network/dio_client.dart';
+import 'package:vocechat_client/core/network/sse_client.dart';
 import 'package:vocechat_client/core/storage/account_store.dart';
 import 'package:vocechat_client/core/storage/secure_token_store.dart';
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/features/auth/application/auth_controller.dart';
 import 'package:vocechat_client/features/auth/data/auth_api.dart';
+import 'package:vocechat_client/features/messages/application/message_dispatcher.dart';
+import 'package:vocechat_client/features/messages/domain/message_models.dart';
 
 const _account = AccountConfig(
   accountId: 'server::7',
@@ -34,6 +37,40 @@ const _renewed = {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final reason in ['password_changed', 'future_server_reason']) {
+    test(
+      'kick $reason clears local auth without waiting for HTTP logout',
+      () async {
+        final events = StreamController<ChatEvent>.broadcast();
+        addTearDown(events.close);
+        final requests = <String>[];
+        final fixture = await _Fixture.create((request) async {
+          requests.add(request.path);
+          if (request.path == '/api/user/me') return _json(_me);
+          // Any redundant logout/renewal would leave this test hanging.
+          return Completer<ResponseBody>().future;
+        }, events: events.stream);
+        expect(await fixture.restore(), isA<AuthStateAuthenticated>());
+        fixture.container.read(messageDispatcherProvider);
+        events.add(ChatEvent.kick(reason: reason));
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(
+          fixture.container.read(authControllerProvider).requireValue,
+          isA<AuthStateUnauthenticated>(),
+        );
+        expect(fixture.tokens.tokens, isNull);
+        final accounts =
+            fixture.container.read(accountStoreProvider).requireValue;
+        expect(accounts.currentAccountId, isNull);
+        expect(accounts.accounts.single.accountId, _account.accountId);
+        expect(fixture.container.read(kickReasonProvider), reason);
+        expect(requests, ['/api/user/me']);
+      },
+    );
+  }
 
   test('saved session enters before a stalled server identity probe', () async {
     final identity = Completer<bool>();
@@ -413,6 +450,7 @@ class _Fixture {
   static Future<_Fixture> create(
     Future<ResponseBody> Function(RequestOptions) respond, {
     bool expired = false,
+    Stream<ChatEvent>? events,
     Future<bool>? identity,
     _MemoryTokenStore? alternateTokens,
   }) async {
@@ -429,7 +467,10 @@ class _Fixture {
       if (alternateTokens != null)
         secureTokenStoreProvider('server::8')
             .overrideWith((ref) => alternateTokens),
-      authControllerProvider.overrideWith(() => _TestAuthController(identity)),
+      authControllerProvider.overrideWith(
+        () => _TestAuthController(identity),
+      ),
+      if (events != null) sseEventsProvider.overrideWith((ref) => events),
     ]);
     addTearDown(container.dispose);
     container.listen(accountStoreProvider, (_, __) {});

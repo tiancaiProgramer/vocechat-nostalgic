@@ -53,6 +53,7 @@ class VoceSseClient {
     required String apiKey,
     int? initialAfterMid,
     this.refreshToken,
+    this.onUnauthorized,
     this.preferInlineParsing,
     this.parseFrame,
     this.onStatusChanged,
@@ -73,6 +74,10 @@ class VoceSseClient {
   /// the WebSocket URL is built. Returning null means "no change / renew
   /// failed; continue with current key".
   final Future<String?> Function()? refreshToken;
+
+  /// Revalidate the session when a disconnected device returns with an
+  /// unexpired token that the server has since revoked.
+  final Future<void> Function()? onUnauthorized;
 
   /// The access token used in the WebSocket query string and header. Mutated
   /// by [refreshToken] on every connect so reconnects always use a fresh key.
@@ -105,6 +110,7 @@ class VoceSseClient {
   /// Set when the consumer (provider dispose) tears us down explicitly —
   /// suppresses any in-flight reconnect schedules.
   bool _disposed = false;
+  bool _sessionEnded = false;
   StreamController<ChatEvent>? _eventsController;
 
   /// Returns a broadcast [Stream<ChatEvent>] with auto-reconnect.
@@ -134,7 +140,7 @@ class VoceSseClient {
   /// Force an immediate reconnect (e.g. after network came back or app
   /// resumed from background). Safe to call from outside.
   void forceReconnect(StreamController<ChatEvent> controller) {
-    if (_disposed) return;
+    if (_disposed || _sessionEnded) return;
     AppLog.w(LogTag.sse, () => '🔄 SSE forceReconnect');
     onStatusChanged?.call(SseStatus.reconnecting);
     _cleanup();
@@ -143,13 +149,17 @@ class VoceSseClient {
 
   Future<void> _connect(
       StreamController<ChatEvent> controller, Duration currentDelay) async {
-    if (_disposed || controller.isClosed) return;
+    if (_disposed || _sessionEnded || controller.isClosed) return;
 
     // Capture the generation this attempt belongs to. _cleanup() bumps
     // _generation, so any callback below that fires after a teardown sees a
     // mismatch and bails — no stale reconnect chains.
     final myGen = _generation;
-    bool isStale() => _disposed || controller.isClosed || myGen != _generation;
+    bool isStale() =>
+        _disposed ||
+        _sessionEnded ||
+        controller.isClosed ||
+        myGen != _generation;
 
     // Renew the access token before every (re)connect so reconnects after
     // expiry don't loop with a stale key. A null return means "keep current".
@@ -182,6 +192,7 @@ class VoceSseClient {
     WebSocket? socket;
     HttpClient? http;
     late Stream<dynamic> frames;
+    bool unauthorized = false;
     try {
       try {
         socket = await WebSocket.connect(wsUrl.toString(), headers: headers)
@@ -203,6 +214,7 @@ class VoceSseClient {
         request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
         final response = await request.close().timeout(_kConnectTimeout);
         if (response.statusCode != HttpStatus.ok) {
+          unauthorized = response.statusCode == HttpStatus.unauthorized;
           throw HttpException('Event stream HTTP ${response.statusCode}');
         }
         frames = decodeVoceEventStream(response.map((chunk) {
@@ -212,6 +224,17 @@ class VoceSseClient {
       }
     } catch (error) {
       http?.close(force: true);
+      unauthorized = unauthorized ||
+          (error is WebSocketException &&
+              error.httpStatusCode == HttpStatus.unauthorized);
+      if (unauthorized && !isStale() && onUnauthorized != null) {
+        try {
+          await onUnauthorized!().timeout(_kConnectTimeout);
+        } catch (error) {
+          AppLog.w(LogTag.sse,
+              () => 'Session revalidation deferred (${error.runtimeType})');
+        }
+      }
       // Never print a handshake exception's URL: it contains the API key.
       AppLog.w(
           LogTag.sse, () => 'Event connection failed (${error.runtimeType})');
@@ -273,12 +296,15 @@ class VoceSseClient {
         }
         if (isStale()) return null;
       }
-
-      if (chatEvent is ChatEventChat) {
-        final mid = chatEvent.message.mid;
-        if (mid > 0 && (_highWaterMid == null || mid > _highWaterMid!)) {
-          _highWaterMid = mid;
-        }
+      final mid = switch (chatEvent) {
+        ChatEventChat(:final message) => message.mid,
+        ChatEventMessagesCleared(:final latestDeletedMid) => latestDeletedMid,
+        _ => null,
+      };
+      if (mid != null &&
+          mid > 0 &&
+          (_highWaterMid == null || mid > _highWaterMid!)) {
+        _highWaterMid = mid;
       }
       return chatEvent;
     }).listen(
@@ -290,6 +316,10 @@ class VoceSseClient {
             onStatusChanged?.call(SseStatus.connected);
           }
           controller.add(chatEvent);
+          if (chatEvent is ChatEventKick) {
+            _sessionEnded = true;
+            _cleanup();
+          }
         }
       },
       onError: (e) {
@@ -309,7 +339,7 @@ class VoceSseClient {
   void _armWatchdog(StreamController<ChatEvent> controller) {
     _watchdog?.cancel();
     _watchdog = Timer(_kSseWatchdog, () {
-      if (_disposed || controller.isClosed) return;
+      if (_disposed || _sessionEnded || controller.isClosed) return;
       onStatusChanged?.call(SseStatus.reconnecting);
       AppLog.w(
           LogTag.sse,
@@ -323,12 +353,12 @@ class VoceSseClient {
 
   void _scheduleReconnect(
       StreamController<ChatEvent> controller, Duration delay) {
-    if (_disposed || controller.isClosed) return;
+    if (_disposed || _sessionEnded || controller.isClosed) return;
     onStatusChanged?.call(SseStatus.reconnecting);
     _cleanup();
     _reconnectTimer = Timer(delay, () {
       _reconnectTimer = null;
-      if (_disposed || controller.isClosed) return;
+      if (_disposed || _sessionEnded || controller.isClosed) return;
       final nextDelay = delay * 2;
       final capped = nextDelay > _maxBackoff ? _maxBackoff : nextDelay;
       _connect(controller, capped);
@@ -465,6 +495,11 @@ Stream<ChatEvent> sseEvents(Ref ref) async* {
     apiKey: tokens.accessToken,
     initialAfterMid: cursor,
     refreshToken: tokenRefreshCallback,
+    onUnauthorized: () async {
+      if (!disposed) {
+        await ref.read(authControllerProvider.notifier).renewIfPossible();
+      }
+    },
     preferInlineParsing: () =>
         !disposed && ref.read(androidBackgroundedProvider),
     onStatusChanged: (status) {

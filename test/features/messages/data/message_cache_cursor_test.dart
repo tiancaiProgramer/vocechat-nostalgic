@@ -63,4 +63,63 @@ void main() {
     await cache.appendOne(_target, _message(102));
     expect(await cache.getCursor(), 100);
   });
+
+  test(
+    'server clear drops queued old text but preserves new rows and metadata',
+    () async {
+      await cache.appendOne(_target, _message(100), advanceCursor: true);
+      await cache.appendOne(_target, _message(102), advanceCursor: true);
+      await cache.writeUserDirectory([
+        {'uid': 2, 'name': 'Peer'},
+      ]);
+      await cache.writeConversations([
+        {'lastMid': 100},
+      ]);
+      cache.scheduleWrite(_target, [_message(102), _message(100)]);
+
+      await cache.clearMessagesThrough(100);
+      // A stale HTTP response or SSE write cannot resurrect the old row.
+      cache.scheduleWrite(_target, [_message(102), _message(100)]);
+      await cache.appendOne(_target, _message(100));
+      await cache.flushAll();
+      expect((await cache.read(_target)).map((m) => m.mid), [102]);
+      expect(await cache.getCursor(), 102);
+      expect(await cache.readConversations(), isNull);
+      expect(await cache.readUserDirectory(), [
+        {'uid': 2, 'name': 'Peer'},
+      ]);
+
+      await cache.clearMessagesThrough(100);
+      expect((await cache.read(_target)).map((m) => m.mid), [102]);
+    },
+  );
+
+  test('a pending debounce cannot restore text after a server clear', () async {
+    cache.scheduleWrite(_target, [_message(80)]);
+    await cache.clearMessagesThrough(100);
+    await cache.flushAll();
+    expect(await cache.read(_target), isEmpty);
+    expect(await database.query('messages'), isEmpty);
+  });
+
+  test(
+    'a preview snapshot already being encoded cannot outlive a clear',
+    () async {
+      final pending = cache.writeConversations([
+        for (var id = 0; id < 10; id++)
+          {'id': id, 'lastMid': 80, 'lastPreview': 'deleted text'},
+      ]);
+      await cache.clearMessagesThrough(100);
+      await pending;
+      expect(await cache.readConversations(), isNull);
+
+      // Even a later caller holding an old snapshot cannot restore its text.
+      await cache.writeConversations([
+        {'id': 1, 'lastMid': 80, 'lastPreview': 'deleted text'},
+      ]);
+      final restored = (await cache.readConversations())!.single;
+      expect(restored['lastMid'], isNull);
+      expect(restored['lastPreview'], isNull);
+    },
+  );
 }

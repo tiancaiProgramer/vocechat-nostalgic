@@ -102,9 +102,9 @@ class AuthController extends _$AuthController {
       _profileRequest = Object();
       final current = state.valueOrNull;
       if (policy.redact && current is AuthStateAuthenticated) {
-        final redacted = AsyncData<AuthState>(AuthState.authenticated(
-          user: current.user.copyWith(email: null),
-        ));
+        final redacted = AsyncData<AuthState>(
+          AuthState.authenticated(user: current.user.copyWith(email: null)),
+        );
         state = state.isLoading
             ? const AsyncLoading<AuthState>()
                 .copyWithPrevious(redacted, isRefresh: false)
@@ -125,17 +125,14 @@ class AuthController extends _$AuthController {
     // creating/selecting a new account, or the user switching accounts)
     // trigger an explicit re-bootstrap rather than invalidating this
     // provider mid-async-operation.
-    ref.listen<AsyncValue<AccountState>>(
-      accountStoreProvider,
-      (prev, next) {
-        if (_suppressStoreReact) return;
-        final prevId = prev?.valueOrNull?.currentAccountId;
-        final nextId = next.valueOrNull?.currentAccountId;
-        if (prev?.hasValue == true && prevId != nextId) {
-          ref.invalidateSelf();
-        }
-      },
-    );
+    ref.listen<AsyncValue<AccountState>>(accountStoreProvider, (prev, next) {
+      if (_suppressStoreReact) return;
+      final prevId = prev?.valueOrNull?.currentAccountId;
+      final nextId = next.valueOrNull?.currentAccountId;
+      if (prev?.hasValue == true && prevId != nextId) {
+        ref.invalidateSelf();
+      }
+    });
     // Retain the auto-dispose store throughout both local restoration and
     // background validation, including before the router mounts its listener.
     ref.listen(serverStoreProvider, (_, __) {});
@@ -762,20 +759,25 @@ class AuthController extends _$AuthController {
   /// The [AccountConfig] entry itself is kept (not removed) so it still
   /// appears in the account switcher for a quick re-login — mirroring how a
   /// signed-out browser tab still remembers "who" was signed in.
-  Future<void> logout() async {
+  Future<void> logout({bool notifyServer = true}) async {
     _supersedeStartup();
+    final generation = _sessionGeneration;
+    final account = _currentAccount();
     ref.read(authRestoreFailureProvider.notifier).state = null;
-    try {
-      await ref.read(authApiProvider).logout();
-    } catch (_) {
-      // Best-effort — always clear locally
+    if (notifyServer) {
+      try {
+        await ref.read(authApiProvider).logout();
+      } catch (_) {
+        // Best-effort — always clear locally
+      }
     }
 
-    final account = _currentAccount();
+    if (generation != _sessionGeneration) return;
     if (account != null) {
       await ref.read(secureTokenStoreProvider(account.accountId)).clear();
     }
 
+    if (generation != _sessionGeneration) return;
     _suppressStoreReact = true;
     try {
       await ref.read(accountStoreProvider.notifier).clearCurrentAccount();

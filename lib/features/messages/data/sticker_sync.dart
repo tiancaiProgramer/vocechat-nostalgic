@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'custom_sticker_store.dart';
 
@@ -113,12 +114,25 @@ class StickerSync {
       // retain the existing local-only behavior.
       await _list();
     } on DioException catch (e) {
+      final data = e.response?.data;
+      final code = data is Map ? data['error'] : null;
+      final knownCode = const {
+        'unauthorized',
+        'vc_unavailable',
+        'invalid_vc_response'
+      }.contains(code)
+          ? code
+          : 'unknown';
+      debugPrint(
+          'VoceStickerSync stage=connect type=${e.type.name} status=${e.response?.statusCode ?? 0} backend=$knownCode');
       return const {404, 405}.contains(e.response?.statusCode)
           ? StickerSyncStatus.local
           : StickerSyncStatus.unavailable;
     } on FormatException {
+      debugPrint('VoceStickerSync stage=connect category=unexpected_service');
       return StickerSyncStatus.local;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('VoceStickerSync stage=connect category=${error.runtimeType}');
       return StickerSyncStatus.unavailable;
     }
     try {
@@ -164,7 +178,10 @@ class StickerSync {
       return (await store.pending()).isEmpty
           ? StickerSyncStatus.synced
           : StickerSyncStatus.pending;
-    } catch (_) {
+    } catch (error) {
+      final status = error is DioException ? error.response?.statusCode : null;
+      debugPrint(
+          'VoceStickerSync stage=library category=${error.runtimeType} status=${status ?? 0}');
       return StickerSyncStatus.pending;
     }
   }

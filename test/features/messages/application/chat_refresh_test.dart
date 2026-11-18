@@ -115,12 +115,56 @@ void main() {
     container.read(_provider);
     await _flush();
     if (finishHistory) {
-      api.requests.first.result.complete([]);
+      api.requests.first.result.complete(
+        cache.rows.where((m) => m.mid > 0).toList(),
+      );
       await container.read(_provider.future);
       await _flush();
     }
     return container;
   }
+
+  test(
+    'empty server history removes offline-deleted text but keeps new arrivals',
+    () async {
+      final api = _Api();
+      final cache = _Cache([_message(20), _message(19)]);
+      final container = await setup(cache, api, finishHistory: false);
+      container.read(_provider.notifier).applyIncomingMessage(_message(21));
+      await _flush();
+      api.requests.single.result.complete([]);
+      await _flush();
+      expect(container.read(_provider).requireValue.map((m) => m.mid), [21]);
+      expect(cache.deleted, containsAll([20, 19]));
+      expect(cache.rows.map((m) => m.mid), [21]);
+    },
+  );
+
+  test('history failure keeps cached text available offline', () async {
+    final api = _Api();
+    final cache = _Cache([_message(20)]);
+    final container = await setup(cache, api, finishHistory: false);
+    api.requests.single.result.completeError(StateError('offline'));
+    await _flush();
+    expect(container.read(_provider).requireValue.map((m) => m.mid), [20]);
+    expect(cache.deleted, isEmpty);
+  });
+
+  test(
+    'short history after an offline clear removes old rows and keeps new ones',
+    () async {
+      final api = _Api();
+      final cache = _Cache([_message(20), _message(19)]);
+      final container = await setup(cache, api, finishHistory: false);
+      api.requests.single.result.complete([_message(102), _message(101)]);
+      await _flush();
+      expect(container.read(_provider).requireValue.map((m) => m.mid), [
+        102,
+        101,
+      ]);
+      expect(cache.rows.map((m) => m.mid), [102, 101]);
+    },
+  );
 
   test('HTTP history and sends never acknowledge the event-stream cursor',
       () async {
@@ -150,6 +194,29 @@ void main() {
     await _flush();
     expect(
         container.read(_provider).requireValue.map((m) => m.mid), [23, 22, 20]);
+  });
+
+  test('server clear preserves pending sends and rejects stale history', () async {
+    final api = _Api()..sendResult = Completer<int>();
+    final events = StreamController<ChatEvent>.broadcast();
+    addTearDown(events.close);
+    final container = await setup(_Cache([_message(20)]), api, events: events.stream);
+    final controller = container.read(_provider.notifier);
+    final send = controller.sendText('still sending');
+    await _flush();
+    events.add(const ChatEvent.connectionOpened());
+    events.add(const ChatEvent.ready());
+    await _flush();
+    events.add(const ChatEvent.messagesCleared(latestDeletedMid: 20));
+    await _flush();
+    expect(container.read(_provider).requireValue.every((m) => m.mid < 0), isTrue);
+    expect(container.read(_provider).requireValue, hasLength(1));
+    api.requests.last.result.complete([_message(20)]);
+    await _flush();
+    expect(container.read(_provider).requireValue.any((m) => m.mid == 20), isFalse);
+    api.sendResult!.complete(21);
+    await send;
+    expect(container.read(_provider).requireValue.map((m) => m.mid), [21]);
   });
 
   test('ready fills gaps spanning more than one history page', () async {
@@ -344,7 +411,7 @@ void main() {
     final controller = container.read(_provider.notifier);
     final sending = controller.sendText('new message');
     final echo = _message(100, content: 'new message', fromUid: 7);
-    api.requests.first.result.complete([echo]);
+    api.requests.first.result.complete([echo, _message(20)]);
     await _flush();
     api.sendResult!.complete(100);
     await sending;
@@ -404,6 +471,7 @@ void main() {
     final controller = container.read(_provider.notifier);
     final sending = controller.sendText('same text');
     api.requests.first.result.complete([
+      _message(20),
       _message(19, content: 'same text', fromUid: 7),
     ]);
     await _flush();
@@ -431,7 +499,7 @@ void main() {
     await container.read(_provider.future);
     await _flush();
     final newBackground = api.requests[2].result;
-    newBackground.complete([]);
+    newBackground.complete([_message(200, content: 'new account')]);
     await _flush();
     final newLoading = controller.loadMore();
     final newPage = api.requests[3].result;
@@ -490,7 +558,9 @@ void main() {
     container.invalidate(_provider);
     await container.read(_provider.future);
     await _flush();
-    api.requests.last.result.complete([]);
+    api.requests.last.result.complete(
+      cache.rows.where((m) => m.mid > 0).toList(),
+    );
     await _flush();
     final restored = container.read(_provider.notifier);
     expect(restored.statusFor(tempMid), MessageSendStatus.failed);
@@ -588,9 +658,9 @@ void main() {
       final echo = _message(100,
           content: 'delivered before disconnect', fromUid: 7, localId: 44);
       if (source == 'history') {
-        api.requests.single.result.complete([echo]);
+        api.requests.single.result.complete([echo, _message(20)]);
       } else {
-        api.requests.single.result.complete([]);
+        api.requests.single.result.complete([_message(20)]);
         controller.applyIncomingMessage(echo);
       }
       await _flush();
@@ -603,7 +673,9 @@ void main() {
       container.invalidate(_provider);
       await container.read(_provider.future);
       await _flush();
-      api.requests.last.result.complete([]);
+      api.requests.last.result.complete(
+        cache.rows.where((m) => m.mid > 0).toList(),
+      );
       await _flush();
       expect(
           container.read(_provider).requireValue.map((m) => m.mid), [100, 20]);
@@ -656,7 +728,7 @@ void main() {
 
     api.sends.single.result.complete(101);
     await sending;
-    api.requests.single.result.complete([]);
+    api.requests.single.result.complete([_message(100), _message(20)]);
     await _flush();
     expect(container.read(_provider).requireValue.map((m) => m.mid),
         [101, 100, 20]);

@@ -260,6 +260,7 @@
 
   "authKickedFromOtherDevice": "Вы вышли из системы: ваш аккаунт только что вошёл на другом устройстве.",
   "authAccountDeleted": "Ваш аккаунт был удалён.",
+  "authPasswordChanged": "Пароль изменён. Войдите снова.",
   "authSessionEnded": "Сессия завершена. Пожалуйста, войдите снова.",
 
   "chatListMarkRead": "Отметить как прочитанное",
@@ -314,6 +315,13 @@
   "chatActionSelect": "Выбрать",
   "chatCopiedToClipboard": "Скопировано в буфер обмена",
   "chatForwardedMessagePreview": "[Пересланное сообщение]",
+  "chatAutoDelete1Month": "1 месяц (30 дней)",
+  "chatAutoDeleteWholeChannel": "Весь канал",
+  "chatAutoDeleteChannelDescription": "Автоматически удалять новые сообщения всех отправителей через выбранное время.",
+  "chatAutoDeletePersonalDescription": "Удалять только мои сообщения через выбранное время.",
+  "chatAutoDeletePolicyDescription": "Лимит канала действует для всех. Личные настройки могут удалять ваши сообщения раньше. Срок существующих сообщений не меняется.",
+  "chatAutoDeleteUnsupported": "Сервер не поддерживает эту опцию. Обновите сервер.",
+  "chatAutoDeleteCheckingSupport": "Проверка поддержки сервером…",
   "chatAutoDeleteTitle": "Автоудаление сообщений",
   "chatExpiresTooltip": "Исчезнет через {duration} после отправки",
   "chatAutoDeleteOff": "Выключено",

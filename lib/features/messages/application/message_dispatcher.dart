@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/network/sse_client.dart';
+import '../../../core/storage/account_store.dart';
 import '../../../core/privacy/email_privacy_provider.dart';
 import '../../../core/utils/app_log.dart';
 import '../../auth/application/auth_controller.dart';
@@ -46,13 +47,48 @@ class MessageDispatcher extends _$MessageDispatcher {
 
   @override
   void build() {
+    var active = true;
+    ref.onDispose(() => active = false);
     ref.listen(sseEventsProvider, (_, next) {
       next.whenData((event) {
+        if (!active) return;
         if (event is ChatEventConnectionOpened) {
           _initialConfig = true;
           _pendingPersistence = _pendingPersistence.then((_) {
             _persistenceFailed = false;
           });
+          return;
+        }
+        if (event is ChatEventMessagesCleared) {
+          final cache = ref.read(messageCacheProvider).valueOrNull;
+          if (cache == null) return;
+          cache.markMessagesCleared(event.latestDeletedMid);
+          _pendingPersistence = _pendingPersistence.then((_) async {
+            try {
+              await cache.clearMessagesThrough(event.latestDeletedMid);
+              if (!active ||
+                  ref.read(messageCacheProvider).valueOrNull != cache) {
+                return;
+              }
+              ref.invalidate(conversationsProvider);
+              ref.invalidate(reactionsProvider);
+              ref.invalidate(cacheUsageBytesProvider);
+            } catch (error) {
+              _persistenceFailed = true;
+              AppLog.w(
+                LogTag.sse,
+                () => 'Message clear will retry on history refresh: $error',
+              );
+            }
+          });
+          return;
+        }
+        if (event is ChatEventReady) {
+          // Clear broadcasts are transient; an offline device must validate
+          // cached previews against server history when it reconnects.
+          if (ref.exists(conversationsProvider)) {
+            unawaited(ref.read(conversationsProvider.notifier).refresh());
+          }
           return;
         }
         if (event is ChatEventChat) {
@@ -106,10 +142,9 @@ class MessageDispatcher extends _$MessageDispatcher {
           return;
         }
         if (event is ChatEventServerConfigChanged) {
-          final changed = ref.read(emailPrivacyProvider.notifier).applyConfig(
-                event.data,
-                initial: _initialConfig,
-              );
+          final changed = ref
+              .read(emailPrivacyProvider.notifier)
+              .applyConfig(event.data, initial: _initialConfig);
           _initialConfig = false;
           if (changed && ref.exists(authControllerProvider)) {
             unawaited(ref.read(authControllerProvider.notifier).refreshUser());
@@ -166,11 +201,9 @@ class MessageDispatcher extends _$MessageDispatcher {
           return;
         }
         if (event is ChatEventUserCalling) {
-          ref.read(incomingCallProvider.notifier).set(
-                fromUid: event.uid,
-                toUid: event.target,
-                calling: true,
-              );
+          ref
+              .read(incomingCallProvider.notifier)
+              .set(fromUid: event.uid, toUid: event.target, calling: true);
           return;
         }
         if (event is ChatEventUnknown) {
@@ -315,7 +348,12 @@ class MessageDispatcher extends _$MessageDispatcher {
         _parseBurnAfterReading(data['burn_after_reading_users'], 'uid');
     final groups =
         _parseBurnAfterReading(data['burn_after_reading_groups'], 'gid');
-    ref.read(burnAfterReadProvider.notifier).applySnapshot(users, groups);
+    ref.read(burnAfterReadProvider.notifier).applySnapshot(
+          users,
+          groups,
+          supportsUsers: data['burn_after_reading_users'] is List,
+          supportsGroups: data['burn_after_reading_groups'] is List,
+        );
   }
 
   /// Burn-after-read delta from `user_settings_changed` (e.g. changed on
@@ -347,10 +385,9 @@ class MessageDispatcher extends _$MessageDispatcher {
   void _applyMuteSnapshot(Map<String, dynamic> data) {
     final users = _parseMuteIds(data['mute_users'], 'uid');
     final groups = _parseMuteIds(data['mute_groups'], 'gid');
-    ref.read(mutedChatsProvider.notifier).applySnapshot(
-          users: users.toSet(),
-          groups: groups.toSet(),
-        );
+    ref
+        .read(mutedChatsProvider.notifier)
+        .applySnapshot(users: users.toSet(), groups: groups.toSet());
   }
 
   /// Mute delta from `user_settings_changed`: `add_mute_users` /
@@ -408,14 +445,23 @@ class MessageDispatcher extends _$MessageDispatcher {
   /// Known reasons (from the Rust server source):
   ///   - `login_from_other_device` — same account signed in elsewhere
   ///   - `delete_user` — account deleted by admin
+  ///   - `password_changed` — all sessions revoked after a password change
   ///   - other strings should still result in logout (fail-safe)
   void _handleKick(String? reason) {
     AppLog.w(LogTag.sse, () => '👢 SSE kick received: reason=$reason');
     ref.read(kickReasonProvider.notifier).set(reason);
-    // Fire-and-forget logout: tokens get wiped, auth state flips to
-    // unauthenticated, and the GoRouter redirect chain sends the user to
-    // /login. The SSE provider will tear down on its own when auth flips.
-    Future.microtask(() => ref.read(authControllerProvider.notifier).logout());
+    // The server already revoked this session. Do not wait for another HTTP
+    // request (or try to renew revoked tokens) before clearing it locally.
+    final accountId =
+        ref.read(accountStoreProvider).valueOrNull?.currentAccountId;
+    Future.microtask(() {
+      if (ref.read(accountStoreProvider).valueOrNull?.currentAccountId ==
+          accountId) {
+        return ref
+            .read(authControllerProvider.notifier)
+            .logout(notifyServer: false);
+      }
+    });
   }
 
   /// Dispatch a reaction-type chat message:

@@ -9,11 +9,17 @@ import 'package:vocechat_client/core/storage/secure_token_store.dart';
 import 'package:vocechat_client/core/storage/server_store.dart';
 import 'package:vocechat_client/features/auth/application/auth_controller.dart';
 import 'package:vocechat_client/features/auth/presentation/login_screen.dart';
+import 'package:vocechat_client/features/messages/application/message_dispatcher.dart';
 import 'package:vocechat_client/l10n/generated/app_localizations.dart';
 
 void main() {
-  Future<void> mount(WidgetTester tester, _Credentials credentials,
-      {AuthRestoreFailure? failure, _Auth? auth}) async {
+  Future<void> mount(
+    WidgetTester tester,
+    _Credentials credentials, {
+    AuthRestoreFailure? failure,
+    _Auth? auth,
+    String? kickReason,
+  }) async {
     tester.view.physicalSize = const Size(450, 1100);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -24,6 +30,7 @@ void main() {
         authControllerProvider.overrideWith(() => auth ?? _Auth()),
         secureTokenStoreProvider('server').overrideWith((ref) => credentials),
         authRestoreFailureProvider.overrideWith((ref) => failure),
+        kickReasonProvider.overrideWith(() => _KickReason(kickReason)),
       ],
       child: const MaterialApp(
         locale: Locale('en'),
@@ -118,6 +125,32 @@ void main() {
       expect(field(tester, 1), _saved.password);
     });
   }
+
+  for (final reason in ['password_changed', 'unknown_new_server_reason']) {
+    testWidgets('login explains session termination for $reason', (
+      tester,
+    ) async {
+      await mount(tester, _Credentials(() async => _saved), kickReason: reason);
+      expect(
+        find.text(
+          reason == 'password_changed'
+              ? 'Your password has changed. Please sign in again.'
+              : 'Your session ended. Please sign in again.',
+        ),
+        findsOneWidget,
+      );
+      // The identity and remembered credential survive forced sign-out.
+      expect(field(tester, 0), _saved.email);
+      expect(tester.takeException(), isNull);
+    });
+  }
+}
+
+class _KickReason extends KickReason {
+  _KickReason(this.initial);
+  final String? initial;
+  @override
+  String? build() => initial;
 }
 
 const _saved =

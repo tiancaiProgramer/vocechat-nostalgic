@@ -498,6 +498,13 @@
   "chatActionSelect": "Select",
   "chatCopiedToClipboard": "Copied to clipboard",
   "chatForwardedMessagePreview": "[Forwarded message]",
+  "chatAutoDelete1Month": "1 month (30 days)",
+  "chatAutoDeleteWholeChannel": "Entire channel",
+  "chatAutoDeleteChannelDescription": "Automatically delete new messages from every sender after the selected time.",
+  "chatAutoDeletePersonalDescription": "Only delete messages sent by me after the selected time.",
+  "chatAutoDeletePolicyDescription": "The channel limit applies to everyone. Personal settings can delete your messages sooner. Existing messages keep their original expiry.",
+  "chatAutoDeleteUnsupported": "The server does not support this option. Upgrade the server to enable it.",
+  "chatAutoDeleteCheckingSupport": "Checking server support…",
   "chatAutoDeleteTitle": "Auto-delete messages",
   "chatExpiresTooltip": "Automatically deleted {duration} after being sent",
   "@chatExpiresTooltip": {
@@ -883,5 +890,6 @@
   "appearanceFontFamilySystem": "Follow system font",
   "appearanceFontFamilyBundled": "App default font",
   "appearanceFontFamilySaveFailed": "Couldn't save the font. Please try again.",
-  "appearanceSystemFontUnavailable": "The phone’s font could not be read. Using the standard system font."
+  "appearanceSystemFontUnavailable": "The phone’s font could not be read. Using the standard system font.",
+  "authPasswordChanged": "Your password has changed. Please sign in again."
 }

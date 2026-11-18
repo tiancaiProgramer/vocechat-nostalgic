@@ -1045,6 +1045,32 @@ class AppL10nEs extends AppL10n {
   String get chatForwardedMessagePreview => '[Mensaje reenviado]';
 
   @override
+  String get chatAutoDelete1Month => '1 mes (30 días)';
+
+  @override
+  String get chatAutoDeleteWholeChannel => 'Todo el canal';
+
+  @override
+  String get chatAutoDeleteChannelDescription =>
+      'Eliminar automáticamente los mensajes nuevos de todos tras el tiempo seleccionado.';
+
+  @override
+  String get chatAutoDeletePersonalDescription =>
+      'Eliminar solo mis mensajes tras el tiempo seleccionado.';
+
+  @override
+  String get chatAutoDeletePolicyDescription =>
+      'El límite del canal se aplica a todos. La configuración personal puede eliminar tus mensajes antes. Los mensajes existentes conservan su vencimiento.';
+
+  @override
+  String get chatAutoDeleteUnsupported =>
+      'El servidor no admite esta opción. Actualiza el servidor.';
+
+  @override
+  String get chatAutoDeleteCheckingSupport =>
+      'Comprobando compatibilidad del servidor…';
+
+  @override
   String get chatAutoDeleteTitle => 'Eliminación automática de mensajes';
 
   @override
@@ -1982,4 +2008,8 @@ class AppL10nEs extends AppL10n {
   @override
   String get appearanceSystemFontUnavailable =>
       'No se pudo leer la fuente del teléfono. Se usa la fuente estándar del sistema.';
+
+  @override
+  String get authPasswordChanged =>
+      'Tu contraseña ha cambiado. Inicia sesión de nuevo.';
 }
